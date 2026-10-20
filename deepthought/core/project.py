@@ -84,21 +84,65 @@ class ProjectStore:
         with self._lock:
             return [p for p in self._load() if Path(p["path"]).is_dir()]
 
-    def add(self, path, kind=""):
+    def add(self, path, kind="", manual=False):
+        """Remember a project. A manual kind (chosen by the user) is never
+        overwritten by detection."""
         path = str(Path(path).expanduser().resolve())
         with self._lock:
             items = self._load()
             for p in items:
                 if p["path"] == path:
-                    if kind:
+                    if kind and (manual or not p.get("kind_manual")):
                         p["kind"] = kind
+                        p["kind_manual"] = bool(manual or p.get("kind_manual"))
                     self._save(items)
                     return p
-            entry = {"path": path, "name": Path(path).name, "kind": kind,
+            entry = {"path": path, "name": Path(path).name, "kind": kind, "kind_manual": bool(manual and kind),
                      "added": time.time(), "last_run": None, "last_grade": None}
             items.append(entry)
             self._save(items)
             return entry
+
+    def configure(self, path, kind=None, suites=None):
+        """Set the project's own type and/or the suites linked to it.
+
+        kind:   a project type (any name, e.g. "pipex" or "my_project");
+                "" goes back to automatic detection; None keeps it.
+        suites: a list of suite uids that will run for this project
+                (instead of the detected ones); [] goes back to automatic;
+                None keeps it.
+        """
+        entry = self.add(path)
+        with self._lock:
+            items = self._load()
+            for p in items:
+                if p["path"] != entry["path"]:
+                    continue
+                if kind is not None:
+                    p["kind"] = kind.strip()
+                    p["kind_manual"] = bool(kind.strip())
+                if suites is not None:
+                    if suites:
+                        p["suites"] = list(dict.fromkeys(suites))
+                    else:
+                        p.pop("suites", None)
+                entry = p
+            self._save(items)
+        return entry
+
+    def link(self, path, uid, current=None):
+        """Add a suite to the project. When the project still runs its detected
+        suites, they stay linked too (`current`)."""
+        entry = self.get(path) or self.add(path)
+        suites = list(entry.get("suites") or current or [])
+        if uid not in suites:
+            suites.append(uid)
+        return self.configure(path, suites=suites)
+
+    def unlink(self, path, uid):
+        entry = self.get(path)
+        suites = [u for u in (entry.get("suites") or []) if u != uid]
+        return self.configure(path, suites=suites)
 
     def get(self, path):
         path = str(Path(path).expanduser().resolve())

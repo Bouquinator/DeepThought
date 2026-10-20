@@ -144,6 +144,19 @@ export function openInEditor(path, line) {
   api('POST', '/api/open', { path, line }).catch((e) => toast(e.message, 'error'));
 }
 
+// The C harness sends raw bytes as code points 0..255. Program output is
+// usually UTF-8 text: decode it when it is valid UTF-8 (comparison values
+// are left as bytes, so a diff stays byte-exact).
+export function decodeUtf8(text) {
+  if (!text || !/[\x80-\xff]/.test(text) || /[^\x00-\xff]/.test(text)) return text;
+  try {
+    const bytes = Uint8Array.from(text, (c) => c.charCodeAt(0));
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch (e) {
+    return text;
+  }
+}
+
 // Render a string with invisible characters made visible.
 // The C harness maps raw bytes to code points 0..255, so \u00XX == byte XX.
 export function Visible({ text, allSpaces, className }) {

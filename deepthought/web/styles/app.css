@@ -300,6 +300,7 @@ pre.source.context { margin-bottom: 8px; max-height: 160px; }
 .groups { display: flex; flex-wrap: wrap; gap: 4px; }
 .card-foot { margin-top: 4px; }
 .src-builtin { color: var(--accent); }
+.src-community { color: var(--pass); }
 .src-git { color: var(--running); }
 .src-zip { color: var(--leak); }
 .src-folder, .src-local { color: var(--timeout); }
@@ -328,3 +329,9 @@ pre.source.context { margin-bottom: 8px; max-height: 160px; }
   .page { padding: 16px; }
   .grid { grid-template-columns: 1fr; }
 }
+
+.suite-picker { max-height: 42vh; }
+.pick-kind { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); padding: 8px 12px 2px; }
+.pick-row input { accent-color: var(--accent); }
+.link-select { width: auto; padding: 3px 8px; font-size: 12.5px; }
+.form .pick-row { flex-direction: row; align-items: center; gap: 8px; margin: 0; }

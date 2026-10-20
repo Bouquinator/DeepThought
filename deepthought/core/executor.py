@@ -35,6 +35,7 @@ from deepthought.runners.base import shard
 
 MAX_ASSERTS = 30
 _ids = itertools.count()
+_FETCH_LOCK = threading.Lock()  # one download per dependency at a time, across runs
 
 
 class RunError(Exception):
@@ -126,6 +127,8 @@ class RunContext:
             v["out"] = str(outdir)
         for k, val in (variant or {}).items():
             v[f"matrix.{k}"] = val
+        for f in getattr(suite, "fetch", []):
+            v[f"fetch.{f['name']}"] = f["path"]
         return v
 
     def x(self, value, suite):
@@ -173,14 +176,35 @@ class RunManager:
                 return run
         return None
 
+    def suites_for(self, project_path):
+        """(mode, kind, suites) that would run for a project, without raising.
+
+        mode is "linked" (the user chose the suites), "kind" (the user set the
+        project type: every enabled suite of that type) or "auto" (detection).
+        """
+        entry = self.projects.get(str(Path(project_path).expanduser().resolve()))
+        linked = [self.registry.suites[u] for u in entry.get("suites") or [] if u in self.registry.suites]
+        if linked:
+            kind = entry.get("kind") if entry.get("kind_manual") else linked[0].project
+            return "linked", kind or linked[0].project, linked
+        if entry.get("kind_manual") and entry.get("kind"):
+            kind = entry["kind"]
+            return "kind", kind, [s for s in self.registry.enabled() if s.project == kind]
+        kind, suites = detect(project_path, self.registry.enabled())
+        return "auto", kind, suites
+
     def resolve_suites(self, project_path, suite_uids=None):
         if suite_uids:
             return [self.registry.get(u) for u in suite_uids]
-        kind, suites = detect(project_path, self.registry.enabled())
+        mode, kind, suites = self.suites_for(project_path)
         if not suites:
+            if mode == "kind":
+                raise RunError(f"no enabled suite targets the project type '{kind}'. Link suites to this "
+                               "project (`dt project link`, or Suites in the UI) or create one (`dt suite new`).")
             raise RunError(
-                f"no installed suite recognises {project_path}. Pick suites explicitly "
-                "(--suite ID) or check the [detect] rules of your suites (`dt suite list`)."
+                f"no installed suite recognises {project_path}. Link suites to it (`dt project link PATH SUITE`, "
+                "or the Suites button in the UI), set its type (`dt project kind PATH TYPE`), "
+                "or pick suites explicitly (--suite ID)."
             )
         return suites
 
@@ -202,7 +226,13 @@ class RunManager:
         options["clean"] = bool(options.get("clean") or build.get("clean"))
         options.setdefault("sanitize", self.config["sanitize"])
         options.setdefault("leaks", self.config["leaks"])
-        kind = suites[0].project
+        entry = self.projects.get(str(project_path))
+        if entry.get("kind_manual") and entry.get("kind"):
+            kind = entry["kind"]  # the user's own project type
+        elif suite_uids:
+            kind = suites[0].project
+        else:
+            kind = self.suites_for(project_path)[1] or suites[0].project
         rid = f"{history.new_run_id()}{next(_ids) % 100:02d}"
         run = RunState(
             id=rid,
@@ -264,6 +294,12 @@ class RunManager:
         ctx.only = only
         ctx.plan = []
         run.stages.append(StageState("workspace", "Workspace"))
+        ctx.fetches = {}
+        for s in suites:
+            for f in s.fetch:
+                ctx.fetches.setdefault(f["path"], (f, []))[1].append(s)
+        if ctx.fetches:
+            run.stages.append(StageState("fetch", "Test sources"))
         builds = {}
         for s in suites:
             argv = make_check.build_argv(ctx, s)
@@ -325,6 +361,7 @@ class RunManager:
         try:
             self._stage_workspace(ctx)
             failed_suites = set()
+            self._stage_fetch(ctx, failed_suites)
             for st, ss in ctx.builds:
                 self._set_stage(ctx, st, RUNNING)
                 ok = make_check.build(ctx, ss[0], st)
@@ -343,10 +380,27 @@ class RunManager:
                     parallel_checks.append((check, s, st))
                 else:
                     self._run_check(ctx, check, s, st)
+            # Groups' `before` steps (e.g. `make bonus`) rewrite build products that other
+            # groups link against: run them all first, serially, before any group compiles.
+            for gs, suite, group, variant, carried in ctx.plan:
+                if carried or suite.uid in failed_suites or not group.before:
+                    continue
+                if self._when_ok(ctx, group)[0]:
+                    for argv in self._before_argvs(ctx, suite, group, variant):
+                        ctx.run_once(argv, cwd=str(ctx.ws.src))
             with ThreadPoolExecutor(max_workers=max(2, ctx.jobs)) as pool:
                 futures = [pool.submit(self._run_check, ctx, c, s, st) for c, s, st in parallel_checks]
-                futures += [pool.submit(self._run_group, ctx, gs, s, g, v, failed_suites)
-                            for gs, s, g, v, carried in ctx.plan if not carried]
+                todo = [(gs, s, g, v) for gs, s, g, v, carried in ctx.plan if not carried]
+                # suites with [defaults] sequential = true run their groups one after another
+                serial = {}
+                for item in todo:
+                    if item[1].defaults.get("sequential"):
+                        serial.setdefault(item[1].uid, []).append(item)
+                    else:
+                        futures.append(pool.submit(self._run_group, ctx, *item, failed_suites))
+                for items in serial.values():
+                    futures.append(pool.submit(
+                        lambda its: [self._run_group(ctx, *it, failed_suites) for it in its], items))
                 for f in futures:
                     f.result()
             if ctx.tracker.cancelled:
@@ -382,6 +436,38 @@ class RunManager:
         st.log = str(ctx.ws.root)
         ctx.emit("stage", stage=st.to_dict())
 
+    def _stage_fetch(self, ctx, failed_suites):
+        """Download the suites' [[fetch]] dependencies (pinned git checkouts)."""
+        if not ctx.fetches:
+            return
+        from deepthought.core.sources import git
+
+        st = next(x for x in ctx.run.stages if x.id == "fetch")
+        self._set_stage(ctx, st, RUNNING)
+        t0 = time.monotonic()
+        logs, bad = [], []
+        for path, (f, suites) in ctx.fetches.items():
+            try:
+                with _FETCH_LOCK:
+                    msg = git.ensure(f["git"], f["ref"], path)
+                logs.append(f"{f['name']}: {msg}")
+            except git.GitError as e:
+                logs.append(f"{f['name']}: FAILED — {e}")
+                bad.append(f["name"])
+                failed_suites.update(s.uid for s in suites)
+                ctx.fetch_failed = getattr(ctx, "fetch_failed", set()) | {s.uid for s in suites}
+        st.ms = int((time.monotonic() - t0) * 1000)
+        st.log = "\n".join(logs)
+        st.items = [{"label": f"{f['name']}  {f['git']}" + (f" @ {f['ref'][:10]}" if f["ref"] else ""),
+                     "ok": f["name"] not in bad} for f, _ in ctx.fetches.values()]
+        if bad:
+            st.status = "fail"
+            st.message = f"could not download {', '.join(bad)} (offline? see the log)"
+        else:
+            st.status = PASS
+            st.message = "; ".join(logs)
+        ctx.emit("stage", stage=st.to_dict())
+
     def _run_check(self, ctx, check, suite, st):
         self._set_stage(ctx, st, RUNNING)
         t0 = time.monotonic()
@@ -409,6 +495,15 @@ class RunManager:
                 return False, f"the Makefile has no '{rule}' rule"
         return True, ""
 
+    def _before_argvs(self, ctx, suite, group, variant):
+        out = []
+        for cmd in group.before:
+            argv = as_argv(cmd, ctx.template_vars(suite, group, variant))
+            if make_check.is_make(argv):  # same variables (CFLAGS…) as the main build
+                argv += make_check.make_args(ctx, suite, variables_only=True)
+            out.append(argv)
+        return out
+
     def _run_group(self, ctx, gs, suite, group, variant, failed_suites):
         try:
             self._run_group_inner(ctx, gs, suite, group, variant, failed_suites)
@@ -424,6 +519,9 @@ class RunManager:
     def _run_group_inner(self, ctx, gs, suite, group, variant, failed_suites):
         if ctx.tracker.cancelled:
             return
+        if suite.uid in getattr(ctx, "fetch_failed", set()):
+            gs.status, gs.message = BUILD_ERROR, "the suite's test sources could not be downloaded"
+            return
         if suite.uid in failed_suites:
             gs.status, gs.message = BUILD_ERROR, "the project failed to build"
             return
@@ -438,11 +536,8 @@ class RunManager:
         gs.status, gs.message = RUNNING, "compiling…"
         ctx.emit("group", group=gs.to_dict(with_tests=False))
         logs = []
-        for cmd in group.before:
-            argv = as_argv(cmd, runner.vars)
-            if make_check.is_make(argv):  # same variables (CFLAGS…) as the main build
-                argv += make_check.make_args(ctx, suite, variables_only=True)
-            res = ctx.run_once(argv, cwd=str(ctx.ws.src))
+        for argv in self._before_argvs(ctx, suite, group, variant):
+            res = ctx.run_once(argv, cwd=str(ctx.ws.src))  # already run (cached) before the groups
             logs.append(f"$ {' '.join(argv)}\n{res.text()}")
             if not res.ok:
                 gs.status, gs.message = BUILD_ERROR, f"`{' '.join(argv)}` failed"

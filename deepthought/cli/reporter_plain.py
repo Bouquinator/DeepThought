@@ -30,6 +30,14 @@ def icon(status):
     return c(ch, color)
 
 
+def decode_output(text):
+    """Raw bytes arrive as code points 0..255: decode them as UTF-8 when valid."""
+    try:
+        return text.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return text
+
+
 def visible(s, limit=400):
     """Make invisible characters visible: \\n, \\t, \\0, trailing spaces, bytes."""
     if s is None:
@@ -138,13 +146,18 @@ class PlainReporter:
     def summary(self, run):
         self._clear_progress()
         self._print()
-        failed = [(g, t) for g in run["groups"] for t in g["tests"] if t["status"] in FAILED_STATUSES]
+        failed = [(g, t) for g in run["groups"] for t in g["tests"]
+                  if t["status"] in FAILED_STATUSES and g.get("category") != "extra"]
+        info = sum(1 for g in run["groups"] for t in g["tests"]
+                   if t["status"] in FAILED_STATUSES and g.get("category") == "extra")
         if failed and not self.quiet:
             self._print(c(f"─── {len(failed)} failing test(s) " + "─" * 40, "bold"))
             for g, t in failed[:60]:
                 self._failure(g, t)
             if len(failed) > 60:
                 self._print(c(f"  … and {len(failed) - 60} more (open the web UI: ./dt)", "dim"))
+        if info:
+            self._print(c(f"\n  ~ {info} informational difference(s) (extra groups, not graded: see the web UI)", "yellow"))
         self._totals(run)
 
     def _failure(self, g, t):
@@ -167,7 +180,7 @@ class PlainReporter:
         if t.get("leaks"):
             self._print(c(f"    leaked {t['leaks']['bytes']} byte(s) in {t['leaks']['count']} allocation(s)", "yellow"))
         if t["status"] in ("build_error", "crash", "error") and t.get("output"):
-            lines = [l for l in t["output"].splitlines() if l.strip()]
+            lines = [l for l in decode_output(t["output"]).splitlines() if l.strip()]
             if t["status"] == "build_error":
                 lines = [l for l in lines if re.search(r"error|undefined|referenced", l, re.I)] or lines
             for l in lines[:8]:
@@ -213,8 +226,9 @@ def exit_code(run):
     if run.get("error"):
         return 2
     score = run.get("score") or {}
-    failed = any(t["status"] in FAILED_STATUSES for g in run["groups"] for t in g["tests"])
-    failed = failed or any(g["status"] == "build_error" for g in run["groups"])
+    graded = [g for g in run["groups"] if g.get("category") != "extra"]  # extra = informational
+    failed = any(t["status"] in FAILED_STATUSES for g in graded for t in g["tests"])
+    failed = failed or any(g["status"] == "build_error" for g in graded)
     failed = failed or bool(score.get("flags"))
     return 1 if failed else 0
 

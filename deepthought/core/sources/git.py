@@ -1,6 +1,7 @@
 """Suites (and the tester itself) distributed as git repositories."""
 
 import os
+import re
 import subprocess
 
 
@@ -8,10 +9,13 @@ class GitError(Exception):
     pass
 
 
-def _git(args, cwd=None, timeout=120):
+def _git(args, cwd=None, timeout=120, batch=False):
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    if batch and "GIT_SSH_COMMAND" not in env:
+        env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o ConnectTimeout=5"  # never wait for a passphrase
     try:
         r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True,
-                           timeout=timeout, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+                           timeout=timeout, env=env)
     except FileNotFoundError:
         raise GitError("git is not installed")
     except subprocess.TimeoutExpired:
@@ -83,3 +87,41 @@ def log_between(path, old, new, limit=20):
         return out.splitlines()
     except GitError:
         return []
+
+
+def _is_sha(ref):
+    return bool(re.fullmatch(r"[0-9a-f]{7,40}", ref or ""))
+
+
+def ensure(url, ref, dest, refresh=False):
+    """Make `dest` a checkout of url@ref. Returns a short human message.
+
+    A commit ref is pinned: the network is used only when it is missing.
+    A branch/tag ref is cloned once and only fetched again when `refresh`.
+    """
+    from pathlib import Path
+
+    dest = Path(dest)
+    if not (dest / ".git").exists():
+        if dest.exists() and any(dest.iterdir()):
+            raise GitError(f"{dest} exists and is not a git checkout")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        _git(["clone", "--quiet", url, str(dest)], timeout=300)
+        if ref:
+            _git(["checkout", "--quiet", ref], cwd=dest)
+        return f"downloaded {url} @ {head(dest)[:10]}"
+    current = head(dest)
+    if _is_sha(ref) and current.startswith(ref):
+        return f"up to date @ {current[:10]}"
+    if not _is_sha(ref) and not refresh:
+        return f"present @ {current[:10]}"
+    _git(["fetch", "--quiet", "--tags", "origin"], cwd=dest, timeout=300)
+    if ref:
+        target = ref if _is_sha(ref) else f"origin/{ref}"
+        try:
+            _git(["checkout", "--quiet", target], cwd=dest)
+        except GitError:
+            _git(["checkout", "--quiet", ref], cwd=dest)
+    else:
+        _git(["pull", "--quiet", "--ff-only"], cwd=dest, timeout=300)
+    return f"updated to {head(dest)[:10]}"

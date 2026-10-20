@@ -1,0 +1,110 @@
+# Sstyle suite — ft_printf
+# SStyles93's CodeTester (https://github.com/SStyles93/42_CodeTester), run through
+# DeepThought. The CodeTester's tests are used unmodified (see ../libft/suite.toml).
+
+[suite]
+id = "sstyle-ft_printf"
+name = "Sstyle suite — ft_printf"
+version = "1.0.0"
+project = "ft_printf"
+engine = ">=0.2"
+authors = ["SStyles93 (tests)", "DeepThought (adapter)"]
+description = "SStyles93's CodeTester for ft_printf: every case compared with the system's printf (bytes and return value), subject requirements, bonus flags, and the original printf's undefined behaviours (informational)."
+homepage = "https://github.com/SStyles93/42_CodeTester"
+
+[[fetch]]
+name = "codetester"
+git = "https://github.com/SStyles93/42_CodeTester.git"
+ref = "473a2dc997f68a4047ca36f073c1f84097e5471b"
+into = "../upstream"
+
+[detect]
+any_files = ["ft_printf.h", "*/ft_printf.h"]
+makefile_name = "libftprintf.a"
+
+[build]
+command = "make -C {project}"
+artifacts = ["libftprintf.a"]
+checks = ["norminette"]      # Makefile, relink, nm and README checks are CodeTester tests (printf_project)
+
+[defaults]
+timeout = 60
+leaks = false
+sequential = true            # printf_project runs make in the project: keep groups apart
+cflags = ["-DDT_NO_ALLOC_HOOK", "-DWITH_PRINTF", '-DPRINTF_PATH="{project}"',
+          '-DSSTYLE_ROOT="{fetch.codetester}"', "-Wno-unused-parameter"]
+
+[[group]]
+name = "Printf mandatory"
+description = "cspdiuxX% without flags, behaviour (buffering, write errors), subject requirements."
+category = "mandatory"
+runner = "c-unit"
+sources = [
+  "../adapter/dt_sstyle.c",
+  "{fetch.codetester}/src/utils.c",
+  "{fetch.codetester}/src/runner.c",
+  "{fetch.codetester}/src/memcheck.c",
+  "{fetch.codetester}/tests/registry.c",
+  "{fetch.codetester}/tests/printf/*.c",
+]
+include = ["{fetch.codetester}/include", "{fetch.codetester}/tests/printf", "{project}"]
+env = { SSTYLE_SELECT = "Printf_mandatory/*", SSTYLE_TIMEOUT = "30", DT_OUTPUT_MAX = "65536" }
+
+# ft_printf is referenced weakly: force it out of the archive (-u), like the CodeTester does.
+[group.darwin]
+ldflags = ["-Wl,-u,_ft_printf", "{project}/libftprintf.a"]
+
+[group.linux]
+cflags = ["-DMEMCHECK_WRAP"]
+ldflags = ["-Wl,-u,ft_printf", "{project}/libftprintf.a",
+           "-Wl,--wrap=malloc", "-Wl,--wrap=calloc", "-Wl,--wrap=free"]
+
+[[group]]
+name = "Printf bonus"
+description = "Flags - 0 . # + and space, minimum width, combinations, the bonus rule."
+category = "bonus"
+runner = "c-unit"
+when = { make_rule = "bonus" }
+before = ["make -C {project} bonus"]
+sources = [
+  "../adapter/dt_sstyle.c",
+  "{fetch.codetester}/src/utils.c",
+  "{fetch.codetester}/src/runner.c",
+  "{fetch.codetester}/src/memcheck.c",
+  "{fetch.codetester}/tests/registry.c",
+  "{fetch.codetester}/tests/printf/*.c",
+]
+include = ["{fetch.codetester}/include", "{fetch.codetester}/tests/printf", "{project}"]
+env = { SSTYLE_SELECT = "Printf_bonus/*", SSTYLE_TIMEOUT = "30", DT_OUTPUT_MAX = "65536" }
+
+[group.darwin]
+ldflags = ["-Wl,-u,_ft_printf", "{project}/libftprintf.a"]
+
+[group.linux]
+cflags = ["-DMEMCHECK_WRAP"]
+ldflags = ["-Wl,-u,ft_printf", "{project}/libftprintf.a",
+           "-Wl,--wrap=malloc", "-Wl,--wrap=calloc", "-Wl,--wrap=free"]
+
+[[group]]
+name = "Original printf behaviour"
+description = "Informational (not graded): what the original printf does where the C standard leaves the behaviour undefined."
+category = "extra"
+runner = "c-unit"
+sources = [
+  "../adapter/dt_sstyle.c",
+  "{fetch.codetester}/src/utils.c",
+  "{fetch.codetester}/src/runner.c",
+  "{fetch.codetester}/src/memcheck.c",
+  "{fetch.codetester}/tests/registry.c",
+  "{fetch.codetester}/tests/printf/*.c",
+]
+include = ["{fetch.codetester}/include", "{fetch.codetester}/tests/printf", "{project}"]
+env = { SSTYLE_SELECT = "Printf_original/*", SSTYLE_TIMEOUT = "30", DT_OUTPUT_MAX = "65536" }
+
+[group.darwin]
+ldflags = ["-Wl,-u,_ft_printf", "{project}/libftprintf.a"]
+
+[group.linux]
+cflags = ["-DMEMCHECK_WRAP"]
+ldflags = ["-Wl,-u,ft_printf", "{project}/libftprintf.a",
+           "-Wl,--wrap=malloc", "-Wl,--wrap=calloc", "-Wl,--wrap=free"]

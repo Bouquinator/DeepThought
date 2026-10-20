@@ -39,9 +39,14 @@ class RegistryTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_builtin_suites_present(self):
-        ids = {s.id for s in self.reg.all()}
-        self.assertTrue({"libft", "get_next_line", "ft_printf"} <= ids)
+    def test_shipped_suites_present(self):
+        by_id = {s.id: s for s in self.reg.all()}
+        self.assertEqual(by_id["get_next_line"].source, "builtin")
+        self.assertEqual(by_id["sstyle-libft"].source, "community")
+        self.assertEqual(by_id["sstyle-ft_printf"].source, "community")
+        self.assertEqual(by_id["sstyle-libft"].fetch[0]["name"], "codetester")
+        with self.assertRaises(RegistryError):
+            self.reg.remove("sstyle-libft")
 
     def test_folder_link_and_remove_keeps_folder(self):
         src = write_suite(self.dir / "mine", SUITE.format(id="mine", version="1.0"), CASES)

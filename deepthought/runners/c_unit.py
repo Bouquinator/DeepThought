@@ -60,7 +60,7 @@ class CUnitRunner(DTPProcessRunner):
 
     def _include_dirs(self):
         dirs = [str(paths.HARNESS_C)]
-        for inc in self.group.include:
+        for inc in self.group.get("include"):
             inc = self.x(inc)
             p = inc if os.path.isabs(inc) else str(Path(self.suite.path) / inc)
             dirs.append(p)
@@ -70,13 +70,13 @@ class CUnitRunner(DTPProcessRunner):
 
     def _flags(self):
         cfg = self.ctx.config
-        cflags = list(cfg["cflags"]) + list(self.suite.defaults.get("cflags", []))
-        cflags += [str(self.x(f)) for f in self.group.cflags]
+        cflags = list(cfg["cflags"]) + [str(self.x(f)) for f in self.suite.defaults.get("cflags", [])]
+        cflags += [str(self.x(f)) for f in self.group.get("cflags")]
         if self.ctx.options.get("sanitize"):
             cflags += SANITIZE_FLAGS
         includes = [arg for d in self._include_dirs() for arg in ("-I", d)]
-        links = self.globs(self.group.link)
-        ldflags = [str(self.x(f)) for f in self.group.ldflags]
+        links = self.globs(self.group.get("link"))
+        ldflags = [str(self.x(f)) for f in self.group.get("ldflags")]
         if platform.system() == "Linux":
             ldflags.append("-ldl")
         if self.ctx.options.get("sanitize"):
@@ -84,7 +84,7 @@ class CUnitRunner(DTPProcessRunner):
         return cflags, includes, links, ldflags
 
     def _plan_units(self):
-        sources = self.globs(self.group.sources)
+        sources = self.globs(self.group.get("sources"))
         if not self.group.split:
             return [Unit("", sources, self.binary)]
         suite_root = str(Path(self.suite.path).resolve())

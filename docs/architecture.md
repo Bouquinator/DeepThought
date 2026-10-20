@@ -33,7 +33,8 @@ deepthought/
   harness/    c/ (dt.h, dt_main.c, dt_alloc.c) · python/dtharness.py
   server/     app.py (HTTP + auth) · api.py (JSON routes) · sse.py (live events)
   web/        index.html · app.js (store, router, SSE) · components/*.js · styles/app.css · vendor/
-suites/       official suites (libft, get_next_line, ft_printf)
+suites/       official suites (get_next_line)
+community/    bundled community suites (sstyle: SStyles93's CodeTester for libft and ft_printf)
 templates/    scaffolds for `dt suite new` (one per runner)
 examples/     complete example projects + suites (python-unit, exec)
 tests/        the engine's own tests + fixture projects (reference and deliberately broken)
@@ -46,7 +47,7 @@ User data lives **outside the repo**, so `git pull` never conflicts:
   config.toml              settings changed from the defaults
   suites.lock.json         installed git / zip / folder suites (source, origin, sha…)
   suites/local|git|zip/    suites created or installed by the user
-  projects.json            projects added in the UI: last grade, build options (command, make args, env)
+  projects.json            your projects: own type, linked suites, build options, last grade
   history/<project>/       one JSON file per run (last 50)
   update.json              cached update check
 /tmp/dt-$USER/ or ~/goinfre/.deepthought-cache   (override with $DT_CACHE)
@@ -58,7 +59,9 @@ User data lives **outside the repo**, so `git pull` never conflicts:
 
 ```
 RunManager.start(project, suites?, options)
- 1. resolve suites   explicit ids, or detect(): best-scoring project kind → all its enabled suites
+ 1. resolve suites   explicit ids › suites the user linked to the project › every enabled suite of the
+                     user's project type › detect(): best-scoring project kind → all its enabled suites
+ 1b. fetch           [[fetch]] dependencies of the suites (pinned git checkouts, downloaded once)
  2. plan             stages (workspace, build per distinct command, checks) and groups
                      (matrix expanded; carried-over results for "retest failed")
  3. workspace        incremental mirror of the project (mtime+size), ignores .git, *.o, *.a, binaries;
@@ -122,6 +125,8 @@ Foreign suites run arbitrary code, by design (they are tests). The UI and CLI sh
 
 ## Self-update
 
+**At every launch** (`auto_update` setting, on by default), `./dt` runs a quick non-interactive `git fetch` (6 s timeout, SSH in batch mode). If the tester is behind and the clone is clean (no local changes, no local commits), it runs `git pull --ff-only` and re-executes itself on the new code (`DT_NO_UPDATE=1` prevents a loop). Offline, diverged or modified clones are left alone with a one-line note. `--no-update` or `DT_NO_UPDATE=1` skip it.
+
 `./dt update` (or the banner in the UI):
 1. `git fetch`.
 2. Refuse when tracked files were modified locally. User suites belong in `~/.deepthought`, never in the repo.
@@ -133,6 +138,7 @@ A background check runs at most once a day (`check_updates` setting), and the re
 ## Extending DeepThought
 
 - **A new suite**: no code change. See [writing-suites.md](writing-suites.md).
+- **An existing tester**: wrap it as a suite without touching its tests (`[[fetch]]` + a small adapter). [`community/sstyle`](../community/sstyle) is a complete example.
 - **A new language with function-level tests**: write a harness that speaks [DTP](protocol.md) and a runner subclassing `DTPProcessRunner` (implement `command()` and optionally `prepare()`), then register it in `runners/__init__.py` and `manifest.RUNNERS`. `python_unit.py` is a 30-line example.
 - **A new project check**: a function `(ctx, suite, stage)` that fills the `StageState`, registered in `checks/__init__.py` and `manifest.CHECKS`.
 - **The UI**: edit the files in `deepthought/web/`. There is no build step, so reload the page.
@@ -143,4 +149,4 @@ A background check runs at most once a day (`check_updates` setting), and the re
 python3 -m unittest discover -s tests -t .
 ```
 
-This covers manifest validation, workspace sync, scoring, the registry (folder/zip/git, zip-slip), self-update against a local upstream, the HTTP API and its security checks, and end-to-end runs. The end-to-end runs check that every planted bug in `tests/fixtures/libft_broken` gets exactly the expected status, and that the reference libft, gnl and ft_printf pass 100%.
+This covers manifest validation, workspace sync, scoring, the registry (folder/zip/git, zip-slip), self-update against a local upstream, the HTTP API and its security checks, and end-to-end runs. The end-to-end runs check that every planted bug in `tests/fixtures/libft_broken` gets exactly the expected status (using `tests/fixtures/engine-suite`, a test-only libft subset), that the reference get_next_line passes 100%, that custom project types and linked suites resolve correctly, and that the Sstyle suites download and run the CodeTester (skipped offline).

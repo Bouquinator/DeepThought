@@ -1,7 +1,7 @@
 // Right-hand panels of the run view: test / group / stage details and the diff.
 import { html, useState } from '../vendor/preact-htm.mjs';
 import { api, toast, store } from '../app.js';
-import { CopyButton, FAILED, STATUS, StatusPill, Visible, openInEditor } from './ui.js';
+import { CopyButton, FAILED, STATUS, StatusPill, Visible, decodeUtf8, openInEditor } from './ui.js';
 
 // ------------------------------------------------------------------ diff
 function commonPrefix(a, b) {
@@ -154,7 +154,7 @@ export function TestDetail({ run, group, test }) {
     ${test.logs.length > 0 && html`<section><h4>Notes</h4>${test.logs.map((l) => html`<div class="note">· ${l}</div>`)}</section>`}
 
     ${test.output && html`<section><h4>Output <span class="dim small">(stdout/stderr of the test)</span></h4>
-      <pre class="output"><${Visible} text=${test.output} /></pre></section>`}
+      <pre class="output"><${Visible} text=${decodeUtf8(test.output)} /></pre></section>`}
 
     <section>
       <h4>Test code ${test.file && html`<a class="loc" href="#" onClick=${(e) => { e.preventDefault(); openInEditor(test.file, test.line); }}>${basename(test.file)}:${test.line}</a>`}</h4>
@@ -214,7 +214,8 @@ export function StageDetail({ stage, project }) {
 export function Summary({ run, onSelect }) {
   const score = run.score;
   const failing = [];
-  for (const g of run.groups) for (const t of g.tests) if (FAILED.has(t.status)) failing.push([g, t]);
+  const info = [];
+  for (const g of run.groups) for (const t of g.tests) if (FAILED.has(t.status)) (g.category === 'extra' ? info : failing).push([g, t]);
   const builds = run.groups.filter((g) => g.status === 'build_error' && !g.tests.length);
   const FLAGS = {
     norminette: 'Norminette errors: the moulinette gives 0 for norm errors.',
@@ -246,6 +247,10 @@ export function Summary({ run, onSelect }) {
         <span class=${'st st-' + t.status}>${STATUS[t.status].icon}</span> <code>${t.id}</code>
         <span class="dim small ellipsis">${t.reason ? t.reason.split('\n')[0] : t.desc}</span>
         ${t.regression && html`<span class="pill pill-regression">regression</span>`}</div>`)}</section>`}
+    ${info.length > 0 && html`<section><h4>Informational differences <span class="count">${info.length}</span></h4>
+      <p class="small dim">Groups marked “info” are not graded: they show where your project differs from a reference on behaviour the subject does not require.</p>
+      ${info.map(([g, t]) => html`<div class="fail-row" onClick=${() => onSelect({ type: 'test', gid: g.gid, id: t.id })}>
+        <span class="st st-warn">~</span> <code>${t.id}</code> <span class="dim small ellipsis">${g.name}</span></div>`)}</section>`}
     ${score && !failing.length && !builds.length && run.status === 'done' && html`<div class="celebrate">
       <div class="big">🎉</div><div>Every test passed. Don't forget: evaluators may test things no tester thinks of.</div></div>`}
   </div>`;

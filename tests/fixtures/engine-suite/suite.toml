@@ -1,23 +1,18 @@
-# DeepThought official suite for Libft.
-# Reference documentation: docs/writing-suites.md
+# Engine test fixture (NOT a shipped suite): a few libft tests used by
+# tests/test_e2e.py to check that DeepThought classifies failures correctly
+# (fail, crash, timeout, leak, build error) on tests/fixtures/libft_broken.
 
 [suite]
-id = "libft"
-name = "Libft"
+id = "engine-libft"
+name = "Engine fixture — libft subset"
 version = "1.0.0"
-project = "libft"
+project = "engine-libft"
 engine = ">=0.1"
-authors = ["DeepThought"]
-description = "Part 1 (libc), Part 2 (additional functions) and bonus (lists). Compared against libc, with malloc-failure and leak checks."
-
-[detect]
-any_files = ["libft.h", "*/libft.h"]
-makefile_name = "libft.a"
 
 [build]
 command = "make -C {project}"
 artifacts = ["libft.a"]
-checks = ["files", "rules", "relink", "norminette", "forbidden"]
+checks = ["files", "rules", "relink", "forbidden"]
 
 [files]
 required = ["Makefile", "**/libft.h"]
@@ -29,8 +24,7 @@ allowed = ["malloc", "free", "write"]
 timeout = 3.0
 
 [[group]]
-name = "Part 1 — libc functions"
-description = "Re-implementations of libc functions, compared against the real ones."
+name = "Part 1"
 category = "mandatory"
 runner = "c-unit"
 split = true
@@ -39,7 +33,7 @@ include = ["{project}", "tests"]
 link = ["{project}/libft.a"]
 
 [[group]]
-name = "Part 2 — additional functions"
+name = "Part 2"
 category = "mandatory"
 runner = "c-unit"
 split = true
@@ -48,7 +42,7 @@ include = ["{project}", "tests"]
 link = ["{project}/libft.a"]
 
 [[group]]
-name = "Bonus — linked lists"
+name = "Bonus"
 category = "bonus"
 runner = "c-unit"
 split = true

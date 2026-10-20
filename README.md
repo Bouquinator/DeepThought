@@ -6,10 +6,10 @@ One tester for every 42 project. It compiles your project in an isolated folder,
 
 - **Zero install**: Python 3.10+ standard library only, no pip, no npm, no sudo. Clone and run.
 - **Browser UI** with live results, watch mode (re-runs on save), re-test failed only, history and regressions. A **terminal UI** and a **CI reporter** are included.
-- **Any number of suites, for any project**: official ones, your own, your friends' (git URL, zip or folder).
+- **Any number of suites, for any project** — even projects DeepThought doesn't know: bundled ones, your own, your friends' (git URL, zip or folder), linked to the projects you choose.
 - **Writing tests is easy**: a `suite.toml` plus test files in C, Python, declarative command cases, or any language through a tiny protocol.
 - **Serious C testing**: one process per test (crashes and infinite loops are isolated), leak detection and **malloc-failure injection without valgrind**, output capture, a `BUFFER_SIZE` matrix, sanitizer mode (ASan/UBSan pinpoints the faulty line), norminette, forbidden functions (`nm`), Makefile rules and relink checks.
-- **Self-updating**: `./dt update` (or one click) pulls the latest tester and suites.
+- **Self-updating**: every launch pulls the latest version automatically (skipped offline or if you edited the tester), and `./dt update` / one click does it on demand.
 
 ## Quick start
 
@@ -54,15 +54,30 @@ Every **Test** / **Retest** (including *Retest failed* and watch-mode runs) firs
 | environment | `KEY=VALUE` variables for every build command |
 | always clean | `make fclean` before building (same as the *Clean build* button) |
 
-## Official suites
+## Suites included
 
-| project | what is tested |
-|---|---|
-| **libft** | Part 1 compared with libc (all bytes 0–255 for `is*`, overlapping `memmove`, `strlcpy`/`strlcat` edge cases, `calloc` overflow…), Part 2 (`split`, `itoa`, `strtrim`, `putnbr_fd`…), bonus lists. NULL protection under malloc failure, leaks, exact allocation sizes, Makefile rules, relink, norminette, forbidden functions. |
-| **get_next_line** | Every test with `BUFFER_SIZE` = 1, 42, 9999 and 10000000: empty file, no final newline, only newlines, 10 000-char lines, 75 KB file, stdin, pipes, invalid/closed fds, read errors, malloc failure, leaks after EOF. Bonus: interleaved fds. |
-| **ft_printf** | `cspdiuxX%` compared byte-for-byte **and by return value** with the system's `printf` (so `%p` of NULL is right on both macOS and Linux). Bonus: `-0.# +` and width/precision combinations. |
+| project | suite | what is tested |
+|---|---|---|
+| **libft** | **Sstyle suite** (community) | [SStyles93's CodeTester](https://github.com/SStyles93/42_CodeTester), run unmodified: all 43 functions (lists as bonus) and its malloc-failure memory suite (Linux). DeepThought adds Makefile rules, relink, norminette and forbidden-function checks. |
+| **ft_printf** | **Sstyle suite** (community) | The CodeTester's printf tests: every case compared with the system's `printf` (bytes and return value), behaviour (buffering, write errors), subject requirements (Makefile, relink, `nm`, README), bonus flags, plus the original printf's undefined behaviours (informational, not graded). |
+| **get_next_line** | official | Every test with `BUFFER_SIZE` = 1, 42, 9999 and 10000000: empty file, no final newline, only newlines, 10 000-char lines, 75 KB file, stdin, pipes, invalid/closed fds, read errors, malloc failure, leaks after EOF. Bonus: interleaved fds. |
 
-Run `./dt suite list` to see what's installed.
+Community suites live in [`community/`](community). The Sstyle suites download the CodeTester (pinned commit) the first time they run. Run `./dt suite list` to see what's installed.
+
+## Your own projects
+
+DeepThought isn't limited to the projects it knows. Add any folder, give it a type, and choose the suites that test it: your own, a friend's, or any installed suite, whatever project it was written for.
+
+```sh
+./dt project add ~/pipex pipex                              # a folder, with your own type name
+./dt suite new pipex-tests --project pipex --runner exec --link ~/pipex   # create a suite for it
+./dt suite add https://github.com/someone/pipex-tests.git --link ~/pipex  # or link someone's suite
+./dt project link ~/pipex other-suite                       # attach any installed suite
+./dt project list                                           # types and suites of your projects
+./dt project auto ~/pipex                                   # back to automatic detection
+```
+
+In the web UI: add the folder (optionally with a type), then use **☰ Suites** on the project. You can also pick a project in **Link it to a project** when importing or creating a suite on the Suites page.
 
 ## Commands
 
@@ -71,11 +86,12 @@ Run `./dt suite list` to see what's installed.
 | `./dt` / `./dt ui [project]` | web UI (127.0.0.1, protected by a token) |
 | `./dt run [path] [-s suite] [-f] [-w] [-v] [--sanitize] [--no-leaks] [--no-norm] [--clean] [--make-args A] [--build-cmd C] [--env K=V] [--save-build] [--timeout s] [-j n] [--json f] [--junit f]` | test in the terminal |
 | `./dt tui [path]` | interactive terminal UI |
-| `./dt suite list \| info ID \| add <git-url\|folder\|file.zip> \| remove ID \| update [ID] \| enable ID \| disable ID` | manage suites |
-| `./dt suite new NAME --project KIND [--runner c-unit\|exec\|python-unit\|script]` | create a suite from a template |
+| `./dt suite list \| info ID \| add <git-url\|folder\|file.zip> [--link PROJECT] \| remove ID \| update [ID] \| enable ID \| disable ID` | manage suites |
+| `./dt suite new NAME --project TYPE [--runner c-unit\|exec\|python-unit\|script] [--link PROJECT]` | create a suite from a template |
 | `./dt suite validate PATH [--project PROJECT]` | check a suite (and run it against a project) |
 | `./dt suite pack ID` | export a suite as a zip |
-| `./dt update [--check]` | update the tester and git suites |
+| `./dt update [--check]` | update the tester and git suites (also done automatically at every launch; `--no-update` or `DT_NO_UPDATE=1` to skip) |
+| `./dt project list \| add PATH [TYPE] \| kind PATH TYPE\|auto \| link PATH SUITE… \| unlink PATH SUITE… \| auto PATH` | your projects: type and linked suites |
 | `./dt history [path]` | past runs and grades |
 | `./dt doctor` | check your environment (compiler, norminette, nm, git, cache dir) |
 

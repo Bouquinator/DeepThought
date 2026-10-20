@@ -15,11 +15,13 @@ from deepthought.core import toml
 
 RUNNERS = ("c-unit", "python-unit", "exec", "script")
 CHECKS = ("rules", "relink", "norminette", "forbidden", "files")
-SUITE_KEYS = {"suite", "detect", "build", "forbidden", "norminette", "files", "defaults", "group"}
+SUITE_KEYS = {"suite", "detect", "build", "forbidden", "norminette", "files", "defaults", "group", "fetch"}
+PLATFORMS = ("darwin", "linux")
+PLATFORM_KEYS = {"sources", "include", "link", "cflags", "ldflags", "env"}
 GROUP_KEYS = {
     "name", "description", "category", "runner", "when", "before", "sources", "include",
     "link", "cflags", "ldflags", "matrix", "fixtures", "timeout", "leaks", "cases",
-    "command", "tests", "env", "split",
+    "command", "tests", "env", "split", *PLATFORMS,
 }
 
 
@@ -52,7 +54,20 @@ class Group:
     tests: list = field(default_factory=list)
     env: dict = field(default_factory=dict)
     split: bool = False
+    platform: dict = field(default_factory=dict)  # {"darwin": {...}, "linux": {...}}
     index: int = 0
+
+    def get(self, key):
+        """A list/dict setting plus the current platform's additions."""
+        import platform as _platform
+
+        base = getattr(self, key)
+        extra = self.platform.get(_platform.system().lower(), {}).get(key)
+        if extra is None:
+            return base
+        if isinstance(base, dict):
+            return {**base, **extra}
+        return list(base) + (extra if isinstance(extra, list) else [extra])
 
     @property
     def slug(self):
@@ -85,6 +100,7 @@ class Suite:
     files: dict = field(default_factory=dict)
     defaults: dict = field(default_factory=dict)
     groups: list = field(default_factory=list)
+    fetch: list = field(default_factory=list)  # [{"name", "git", "ref", "into", "path"}]
     source: str = "builtin"
     origin: str = ""
     uid: str = ""
@@ -231,7 +247,12 @@ def load_suite(path):
             tests=_list(g.get("tests"), "tests", errors, where),
             env=g.get("env", {}) or {},
             split=bool(g.get("split", False)),
+            platform={p: g[p] for p in PLATFORMS if isinstance(g.get(p), dict)},
         )
+        for plat, table in group.platform.items():
+            for key in table:
+                if key not in PLATFORM_KEYS:
+                    errors.append(f"{where}: [{plat}] only accepts {', '.join(sorted(PLATFORM_KEYS))} (got '{key}')")
         if group.slug in seen:
             errors.append(f"{where}: duplicate group name")
         seen.add(group.slug)
@@ -250,6 +271,27 @@ def load_suite(path):
         if not isinstance(group.matrix, dict):
             errors.append(f"{where}: 'matrix' must be a table of lists")
         groups.append(group)
+
+    fetches = []
+    raw_fetch = data.get("fetch", [])
+    if not isinstance(raw_fetch, list):
+        errors.append("[[fetch]] must be an array of tables")
+        raw_fetch = []
+    for i, f in enumerate(raw_fetch):
+        where = f"[[fetch]] #{i + 1}"
+        if not isinstance(f, dict) or not f.get("git"):
+            errors.append(f"{where}: 'git' (repository URL) is required")
+            continue
+        name = f.get("name") or f"dep{i + 1}"
+        into = f.get("into") or name
+        dest = (root / into).resolve()
+        # a dependency may be shared by sibling suites, but never escape their parent folder
+        if not str(dest).startswith(str(root.parent.resolve())):
+            errors.append(f"{where}: 'into' must stay inside the suite folder or its parent")
+            continue
+        if not re.match(r"^[A-Za-z0-9_-]+$", name):
+            errors.append(f"{where}: 'name' may only contain letters, digits, '_' and '-'")
+        fetches.append({"name": name, "git": f["git"], "ref": str(f.get("ref", "")), "path": str(dest)})
 
     if errors:
         raise ManifestError(manifest, errors)
@@ -271,6 +313,7 @@ def load_suite(path):
         files=data.get("files", {}) or {},
         defaults=defaults,
         groups=groups,
+        fetch=fetches,
         warnings=warnings,
     )
     suite.uid = suite.id

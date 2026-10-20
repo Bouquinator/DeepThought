@@ -10,8 +10,12 @@ engine = ">=0.1"
 authors = ["your-login"]
 description = "What this suite checks, in one sentence."
 
-[detect]
-any_files = ["*.py"]
+# [detect] makes the suite run automatically for every matching project folder.
+# Leave it out to run the suite only on projects you link it to
+# (`./dt project link PATH SUITE`, `--link PATH` when creating it, or Suites in the UI).
+# [detect]
+# files = ["Makefile", "main.c"]      # every file must exist
+# makefile_name = "my_program"        # the Makefile's NAME must be exactly this
 
 [build]
 checks = []

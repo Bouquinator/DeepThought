@@ -10,6 +10,7 @@ HARNESS_C = PKG_DIR / "harness" / "c"
 HARNESS_PY = PKG_DIR / "harness" / "python"
 WEB_DIR = PKG_DIR / "web"
 BUILTIN_SUITES = REPO_ROOT / "suites"
+COMMUNITY_SUITES = REPO_ROOT / "community"
 TEMPLATES = REPO_ROOT / "templates"
 INDEX_FILE = REPO_ROOT / "index.json"
 

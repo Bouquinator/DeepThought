@@ -14,7 +14,7 @@ This guide explains how to write a suite that plugs into DeepThought. Anyone can
 - [10. Checklist and good practices](#10-checklist-and-good-practices)
 - [11. Troubleshooting](#11-troubleshooting)
 
-The three official suites in [`suites/`](../suites) (libft, get_next_line, ft_printf) are complete, real-world examples. Read them alongside this guide.
+Real-world examples to read alongside this guide: the official [`suites/get_next_line`](../suites/get_next_line) (C, matrix, fixtures), the [examples](../examples/suites) (Python, exec), and [`community/sstyle`](../community/sstyle) (an existing tester wrapped without changing its tests).
 
 ---
 
@@ -43,7 +43,7 @@ Edit `suite.toml`:
 id = "my-libft"
 name = "My libft tests"
 version = "0.1.0"
-project = "libft"              # same kind as the official libft suite
+project = "libft"              # same type as the other libft suites: they run together
 authors = ["your-login"]
 
 [detect]
@@ -114,7 +114,8 @@ your project ──copy──▶ isolated workspace ──[build] command──�
 ```
 
 - The student's folder is **never modified**. Everything happens in a copy (`/tmp/dt-$USER/ws/…` or goinfre), so `{project}` always points to that copy.
-- A suite is **matched to a project** through `[suite].project` and `[detect]`. When the user runs a folder, DeepThought finds the best-matching project kind and runs **every enabled suite of that kind**. Your suite therefore runs next to the official one.
+- A suite is **matched to a project** through `[suite].project` and `[detect]`. When the user runs a folder, DeepThought finds the best-matching project kind and runs **every enabled suite of that kind**. Your suite therefore runs next to the other suites of that type.
+- **Users can also attach any suite to any project themselves** (`./dt project link PATH SUITE`, `--link PATH`, or ☰ Suites in the UI), and give their own projects a type. A suite without `[detect]` only runs where it is linked, which suits personal or very specific suites.
 - Each test gets a **status**: `pass`, `fail` (an expectation failed), `crash` (signal: segfault, abort…), `timeout`, `leak` (memory still allocated at the end), `build_error` (your test file did not compile against their code), `skip` or `error` (harness problem).
 - **Grade**: like the moulinette. The mandatory pass rate gives 0–100, and bonus tests add up to +25, but only when mandatory is at 100%.
 
@@ -128,7 +129,7 @@ your project ──copy──▶ isolated workspace ──[build] command──�
 |---|---|---|
 | `id` | ✓ | Unique identifier: letters, digits, `.`, `_`, `-`. Used on the command line (`--suite id`). |
 | `name` | ✓ | Display name. |
-| `project` | ✓ | The project kind (`libft`, `get_next_line`, `ft_printf`, `push_swap`, `minishell`, …). Suites with the same `project` run together. Reuse the official names when they exist. |
+| `project` | ✓ | The project kind (`libft`, `get_next_line`, `ft_printf`, `push_swap`, `minishell`, …). Suites with the same `project` run together. Reuse the existing names when they exist (`libft`, `ft_printf`, `get_next_line`…); any name works for other projects. |
 | `version` | | Your suite's version (`"1.2.0"`). Shown in the UI; used when re-importing zips. |
 | `engine` | | Required DeepThought version range, e.g. `">=0.1"`, `">=0.1,<1.0"`. Incompatible suites are flagged, not run. |
 | `authors` | | List of logins/names. |
@@ -208,6 +209,43 @@ A suite has one or more groups. Each group appears as a folder in the test tree.
 | `tests` | python-unit | Globs of Python test files. |
 | `command` | script | Executable (relative to the suite or absolute) speaking DTP. |
 
+### `[[fetch]]`: test sources from another repository
+
+A suite can depend on a git repository, for example an existing tester whose tests you reuse. It is downloaded before the first run (stage *Test sources*), pinned to `ref`:
+
+```toml
+[[fetch]]
+name = "codetester"                                   # → {fetch.codetester}
+git = "https://github.com/SStyles93/42_CodeTester.git"
+ref = "473a2dc997f68a4047ca36f073c1f84097e5471b"      # a commit (pinned) or a branch/tag
+into = "../upstream"                                  # inside the suite folder or its parent (shared)
+```
+
+With a commit `ref`, the network is used only once. With a branch, the checkout is refreshed by `./dt suite update ID`. If the download fails (offline), the suite's groups are reported as build errors with that reason, and other suites still run.
+
+### Platform-specific settings
+
+Any group can add settings for one platform, appended to the common ones:
+
+```toml
+[[group]]
+name = "Libft"
+ldflags = ["-lm"]
+[group.darwin]                       # macOS
+ldflags = ["-Wl,-all_load", "{project}/libft.a"]
+[group.linux]
+cflags = ["-DMEMCHECK_WRAP"]
+ldflags = ["-Wl,--whole-archive", "{project}/libft.a", "-Wl,--no-whole-archive"]
+```
+
+Accepted keys: `sources`, `include`, `link`, `cflags`, `ldflags`, `env`.
+
+### Other `[defaults]`
+
+| key | meaning |
+|---|---|
+| `sequential` | `true`: the suite's groups run one after another instead of in parallel (when tests run `make` in the project, for example). |
+
 ### Placeholders
 
 Usable in commands, paths and flags:
@@ -221,6 +259,7 @@ Usable in commands, paths and flags:
 | `{harness}` | DeepThought's C harness folder (`dt.h`) |
 | `{cc}` | the configured C compiler |
 | `{matrix.NAME}` | the current matrix value |
+| `{fetch.NAME}` | absolute path of a `[[fetch]]` dependency |
 
 ---
 
@@ -268,7 +307,7 @@ All `DT_ASSERT_*` variants exist for the `EQ_*` macros. Every check returns 1 if
 
 Lower-level functions, handy in helpers: `dt_check_bytes(actual, alen, expected, elen, fatal, "label", __FILE__, __LINE__)` compares two byte buffers (used for captured output), and `dt_check_int(...)`, `dt_check_str(...)` and others are the functions behind the macros.
 
-> **Helpers report the right line.** When a check fails inside a helper (`static void check(...)`), the UI shows the helper's code around the failing line *and* the test that called it. Helpers are the best way to write many similar cases. See `suites/libft/tests/part1/ft_strlcpy.c`.
+> **Helpers report the right line.** When a check fails inside a helper (`static void check(...)`), the UI shows the helper's code around the failing line *and* the test that called it. Helpers are the best way to write many similar cases. See `tests/fixtures/engine-suite/tests/part1/ft_strlcpy.c`.
 
 ### Comparing with the real function
 
@@ -286,7 +325,7 @@ DT_TEST(ft_strchr, int_conversion, "c is converted to char: 'H' + 256 finds 'H'"
 }
 ```
 
-When the reference is not portable (`strlcpy` is not in every libc), ship your own reference in a header next to the tests (see `suites/libft/tests/libft_test.h`) and add `"tests"` to `include`.
+When the reference is not portable (`strlcpy` is not in every libc), ship your own reference in a header next to the tests (see `tests/fixtures/engine-suite/tests/libft_test.h`) and add `"tests"` to `include`.
 
 ### Output (`write`, `printf`, `ft_putstr_fd`…)
 
@@ -506,13 +545,23 @@ command = "run.sh"          # relative to the suite folder
 
 ---
 
+## 7b. Wrapping an existing tester
+
+Many 42 testers already exist. You can bring one into DeepThought **without modifying its tests**:
+
+1. `[[fetch]]` its repository, pinned to a commit.
+2. Compile its test files with a small adapter instead of its `main()`. The adapter registers each of its tests with `dt_register()` and turns its report into DeepThought checks (`dt_check`, `dt_check_bytes`, `dt_note`).
+3. Reproduce its build flags (per platform if needed) in the groups.
+
+[`community/sstyle`](../community/sstyle) does exactly this for SStyles93's CodeTester (one ~430-line adapter, none of their files changed). For testers that are programs, the `script` runner is even simpler: a script that runs the tester and prints DTP events.
+
 ## 8. Testing your suite
 
 1. **Validate the manifest**: errors name the exact key.
    ```sh
    ./dt suite validate path/to/my-suite
    ```
-2. **Run it against a correct project**: everything must pass. A test that fails on a correct implementation is a bug in the test (it happens, even to official suites).
+2. **Run it against a correct project**: everything must pass. A test that fails on a correct implementation is a bug in the test (it happens, even to well-tested suites).
    ```sh
    ./dt suite validate path/to/my-suite --project ~/a-correct-libft
    ```
@@ -550,7 +599,7 @@ Users see a **trust warning** before adding a suite, because a suite contains co
 ## 10. Checklist and good practices
 
 - [ ] `id` is unique and stable (renaming it loses users' history matching).
-- [ ] `project` uses the official name when one exists, so your suite runs next to the official one.
+- [ ] `project` uses the usual name when one exists (`libft`…), so your suite runs next to the others.
 - [ ] Every test has a **description written as the rule** ("Returns NULL when malloc fails"), not as the input.
 - [ ] One behaviour per test: a failing test should tell the student *what* is wrong without reading the code.
 - [ ] Prefer comparing with the real function over hard-coded values.

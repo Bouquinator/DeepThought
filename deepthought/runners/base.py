@@ -61,7 +61,7 @@ class Runner:
                "DT_SUITE": str(self.suite.path), "DT_TIMEOUT": str(self.timeout)}
         for k, v in self.variant.items():
             env[f"DT_MATRIX_{k}"] = str(v)
-        for k, v in self.group.env.items():
+        for k, v in self.group.get("env").items():
             env[k] = str(self.x(v))
         return env
 

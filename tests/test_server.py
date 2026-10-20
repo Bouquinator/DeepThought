@@ -49,9 +49,9 @@ class ServerTests(unittest.TestCase):
     def test_state_and_project_run(self):
         code, state = self.req("/api/state")
         self.assertEqual(code, 200)
-        self.assertTrue(any(s["id"] == "libft" for s in state["suites"]))
-        code, proj = self.req("/api/projects", "POST", {"path": str(FIXTURES / "printf_good")})
-        self.assertEqual((code, proj["kind"]), (200, "ft_printf"))
+        self.assertTrue(any(s["id"] == "get_next_line" for s in state["suites"]))
+        code, proj = self.req("/api/projects", "POST", {"path": str(FIXTURES / "gnl_good")})
+        self.assertEqual((code, proj["kind"]), (200, "get_next_line"))
         code, run = self.req("/api/runs", "POST", {"project": proj["path"], "options": {"norminette": False}})
         self.assertEqual(code, 200)
         self.server.app.manager.contexts[run["id"]]  # exists
@@ -63,6 +63,19 @@ class ServerTests(unittest.TestCase):
             time.sleep(0.1)
         self.assertEqual(data["status"], "done")
         self.assertGreater(len(data["groups"]), 0)
+
+    def test_project_config_and_link(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            code, proj = self.req("/api/projects", "POST", {"path": d, "kind": "my_project"})
+            self.assertEqual((code, proj["kind"], proj["mode"], proj["suites"]), (200, "my_project", "kind", []))
+            code, proj = self.req("/api/projects/link", "POST", {"path": d, "suite": "get_next_line"})
+            self.assertEqual((proj["mode"], proj["suites"]), ("linked", ["get_next_line"]))
+            code, proj = self.req("/api/projects/config", "POST", {"path": d, "kind": "", "suites": []})
+            self.assertEqual(proj["mode"], "auto")
+            code, err = self.req("/api/projects/link", "POST", {"path": d, "suite": "nope"})
+            self.assertEqual(code, 400)
 
     def test_static_and_traversal(self):
         with urllib.request.urlopen(self.base + "/app.js") as r:

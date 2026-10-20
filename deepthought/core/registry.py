@@ -2,6 +2,7 @@
 
 Sources:
   builtin  suites/ in the tester repo (updated with the tester itself)
+  community  community/ in the tester repo: bundled third-party suites
   local    ~/.deepthought/suites/local/<id>  (created by `dt suite new`)
   folder   any folder on disk, linked (not copied): edit and rerun in place
   git      cloned into ~/.deepthought/suites/git/<id>, updatable
@@ -68,6 +69,10 @@ class Registry:
                 for d in sorted(paths.BUILTIN_SUITES.iterdir()):
                     if (d / "suite.toml").exists():
                         try_load(d, "builtin")
+            if paths.COMMUNITY_SUITES.is_dir():
+                for manifest in sorted(list(paths.COMMUNITY_SUITES.glob("*/suite.toml"))
+                                       + list(paths.COMMUNITY_SUITES.glob("*/*/suite.toml"))):
+                    try_load(manifest.parent, "community")
             for d in sorted((self.root / "local").iterdir()):
                 if (d / "suite.toml").exists():
                     try_load(d, "local")
@@ -221,8 +226,8 @@ class Registry:
     # ------------------------------------------------------------ managing
     def remove(self, uid):
         suite = self.get(uid)
-        if suite.source == "builtin":
-            raise RegistryError("built-in suites cannot be removed (disable them instead)")
+        if suite.source in ("builtin", "community"):
+            raise RegistryError(f"{suite.source} suites ship with DeepThought and cannot be removed (disable them instead)")
         with self._lock:
             entries = self._read_lock()
             self._write_lock([e for e in entries if Path(e["path"]) != suite.path])
@@ -235,8 +240,12 @@ class Registry:
     def update(self, uid):
         """git pull for git suites. Returns a message."""
         suite = self.get(uid)
-        if suite.source == "builtin":
-            return "built-in suites are updated with the tester (`dt update`)"
+        if suite.fetch:
+            msgs = [f"{f['name']}: {git.ensure(f['git'], f['ref'], f['path'], refresh=True)}" for f in suite.fetch]
+            if suite.source in ("builtin", "community"):
+                return f"{uid}: " + "; ".join(msgs)
+        if suite.source in ("builtin", "community"):
+            return f"{suite.source} suites are updated with the tester (`dt update`)"
         if suite.source != "git":
             return f"{suite.source} suites have nothing to update"
         entries = self._read_lock()

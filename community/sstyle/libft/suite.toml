@@ -1,0 +1,91 @@
+# Sstyle suite — libft
+# SStyles93's CodeTester (https://github.com/SStyles93/42_CodeTester), run through
+# DeepThought. The CodeTester's tests are used unmodified: they are downloaded
+# (pinned commit) into ../upstream on first use and compiled with a small adapter
+# (../adapter/dt_sstyle.c) that turns each CodeTester suite into a DeepThought test.
+
+[suite]
+id = "sstyle-libft"
+name = "Sstyle suite — libft"
+version = "1.0.0"
+project = "libft"
+engine = ">=0.2"
+authors = ["SStyles93 (tests)", "DeepThought (adapter)"]
+description = "SStyles93's CodeTester for libft: all 43 functions + a malloc-failure memory suite (Linux), run unmodified."
+homepage = "https://github.com/SStyles93/42_CodeTester"
+
+[[fetch]]
+name = "codetester"
+git = "https://github.com/SStyles93/42_CodeTester.git"
+ref = "473a2dc997f68a4047ca36f073c1f84097e5471b"
+into = "../upstream"
+
+[detect]
+any_files = ["libft.h", "*/libft.h"]
+makefile_name = "libft.a"
+
+[build]
+command = "make -C {project}"
+artifacts = ["libft.a"]
+checks = ["files", "rules", "relink", "norminette", "forbidden"]
+
+[files]
+required = ["Makefile", "**/libft.h"]
+
+[forbidden]
+allowed = ["malloc", "free", "write"]
+
+[defaults]
+timeout = 60          # one DeepThought test = one CodeTester suite (many checks)
+leaks = false         # the CodeTester has its own memory suite
+cflags = ["-DDT_NO_ALLOC_HOOK", "-DWITH_LIBFT", '-DSSTYLE_ROOT="{fetch.codetester}"', "-Wno-unused-parameter"]
+
+[[group]]
+name = "Libft"
+description = "Part 1 and Part 2 functions, and the memory suite (malloc failures, Linux only)."
+category = "mandatory"
+runner = "c-unit"
+sources = [
+  "../adapter/dt_sstyle.c",
+  "{fetch.codetester}/src/utils.c",
+  "{fetch.codetester}/src/runner.c",
+  "{fetch.codetester}/src/memcheck.c",
+  "{fetch.codetester}/tests/registry.c",
+  "{fetch.codetester}/tests/libft/*.c",
+]
+include = ["{fetch.codetester}/include", "{project}"]
+env = { SSTYLE_SELECT = "Libft/*,!Libft/ft_lst*", SSTYLE_TIMEOUT = "30", DT_OUTPUT_MAX = "65536" }
+
+# The CodeTester references libft functions weakly: the whole archive must be linked.
+[group.darwin]
+ldflags = ["-Wl,-all_load", "{project}/libft.a"]
+
+[group.linux]
+cflags = ["-DMEMCHECK_WRAP"]
+ldflags = ["-Wl,--whole-archive", "{project}/libft.a", "-Wl,--no-whole-archive",
+           "-Wl,--wrap=malloc", "-Wl,--wrap=calloc", "-Wl,--wrap=free"]
+
+[[group]]
+name = "Libft bonus — lists"
+category = "bonus"
+runner = "c-unit"
+when = { make_rule = "bonus" }
+before = ["make -C {project} bonus"]
+sources = [
+  "../adapter/dt_sstyle.c",
+  "{fetch.codetester}/src/utils.c",
+  "{fetch.codetester}/src/runner.c",
+  "{fetch.codetester}/src/memcheck.c",
+  "{fetch.codetester}/tests/registry.c",
+  "{fetch.codetester}/tests/libft/*.c",
+]
+include = ["{fetch.codetester}/include", "{project}"]
+env = { SSTYLE_SELECT = "Libft/ft_lst*", SSTYLE_TIMEOUT = "30", DT_OUTPUT_MAX = "65536" }
+
+[group.darwin]
+ldflags = ["-Wl,-all_load", "{project}/libft.a"]
+
+[group.linux]
+cflags = ["-DMEMCHECK_WRAP"]
+ldflags = ["-Wl,--whole-archive", "{project}/libft.a", "-Wl,--no-whole-archive",
+           "-Wl,--wrap=malloc", "-Wl,--wrap=calloc", "-Wl,--wrap=free"]

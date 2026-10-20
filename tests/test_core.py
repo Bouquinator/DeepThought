@@ -59,15 +59,17 @@ class WorkspaceTests(unittest.TestCase):
 
 
 class DetectTests(unittest.TestCase):
-    def test_builtin_suites_detect_fixtures(self):
-        from deepthought.core.manifest import load_suite
-        from deepthought.core import paths
+    def test_shipped_suites_detect_fixtures(self):
+        from tests.helpers import fresh_home
 
-        suites = [load_suite(p) for p in sorted(paths.BUILTIN_SUITES.iterdir()) if (p / "suite.toml").exists()]
+        from deepthought.core.registry import Registry
+
+        fresh_home()
+        suites = Registry().all()
         self.assertEqual(detect(FIXTURES / "libft_good", suites)[0], "libft")
         self.assertEqual(detect(FIXTURES / "gnl_good", suites)[0], "get_next_line")
         self.assertEqual(detect(FIXTURES / "printf_good", suites)[0], "ft_printf")
-        libft = next(s for s in suites if s.id == "libft")
+        libft = next(s for s in suites if s.id == "sstyle-libft")
         self.assertEqual(match_score(libft, FIXTURES / "gnl_good"), 0)
 
 

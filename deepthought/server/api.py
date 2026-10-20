@@ -51,9 +51,11 @@ def _python_check(suite):
 
 def _project_info(app, entry):
     p = entry["path"]
-    kind, suites = detect(p, app.registry.enabled())
+    mode, kind, suites = app.manager.suites_for(p)
     entry = dict(entry)
+    entry["linked"] = list(entry.get("suites") or [])
     entry["kind"] = kind or entry.get("kind", "")
+    entry["mode"] = mode
     entry["suites"] = [s.uid for s in suites]
     entry["watching"] = p in app.manager.watchers
     defaults = [s.build.get("command") for s in suites if s.build.get("command")]
@@ -76,6 +78,7 @@ def state(h, m, q):
         "projects": [_project_info(app, p) for p in app.manager.projects.all()],
         "suites": app.registry.to_list(),
         "suite_errors": app.registry.errors,
+        "kinds": sorted({s.project for s in app.registry.all()} | {p.get("kind") for p in app.manager.projects.all() if p.get("kind")}),
         "update": app.update_status,
         "runs": [r.summary() for r in list(app.manager.runs.values())[-20:]],
         "home": str(Path.home()),
@@ -92,11 +95,41 @@ def set_config(h, m, q):
 # ------------------------------------------------------------------ projects
 @_route("POST", "/api/projects")
 def add_project(h, m, q):
-    path = Path(h.read_json().get("path", "")).expanduser()
+    body = h.read_json()
+    path = Path(body.get("path", "")).expanduser()
     if not path.is_dir():
         raise ApiError(f"{path} is not a directory")
-    kind, suites = detect(path, h.app.registry.enabled())
-    entry = h.app.manager.projects.add(str(path), kind)
+    manual = (body.get("kind") or "").strip()
+    kind = manual or detect(path, h.app.registry.enabled())[0]
+    entry = h.app.manager.projects.add(str(path), kind, manual=bool(manual))
+    return _project_info(h.app, entry)
+
+
+@_route("POST", "/api/projects/config")
+def configure_project(h, m, q):
+    """{path, kind?: "type" | "" (automatic), suites?: [uids] | [] (automatic)}"""
+    body = h.read_json()
+    path = Path(body.get("path", "")).expanduser()
+    if not path.is_dir():
+        raise ApiError(f"{path} is not a directory")
+    for uid in body.get("suites") or []:
+        h.app.registry.get(uid)  # validates
+    entry = h.app.manager.projects.configure(str(path), kind=body.get("kind"), suites=body.get("suites"))
+    return _project_info(h.app, entry)
+
+
+@_route("POST", "/api/projects/link")
+def link_project(h, m, q):
+    """{path, suite, linked: bool}: attach a suite to a project (or detach it)."""
+    body = h.read_json()
+    path = str(Path(body.get("path", "")).expanduser().resolve())
+    suite = h.app.registry.get(body["suite"])
+    store = h.app.manager.projects
+    if body.get("linked", True):
+        _, _, current = h.app.manager.suites_for(path)
+        entry = store.link(path, suite.uid, current=[s.uid for s in current])
+    else:
+        entry = store.unlink(path, suite.uid)
     return _project_info(h.app, entry)
 
 
@@ -250,8 +283,10 @@ def community_index(h, m, q):
     except (OSError, ValueError):
         data = {"suites": []}
     installed = {s.origin for s in h.app.registry.all()}
+    paths_ = {str(Path(s.path).resolve()) for s in h.app.registry.all()}
     for s in data.get("suites", []):
-        s["installed"] = s.get("url") in installed
+        bundled = s.get("path") and str((paths.REPO_ROOT / s["path"]).resolve()) in paths_
+        s["installed"] = bool(bundled) or s.get("url") in installed
     return data
 
 

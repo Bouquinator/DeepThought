@@ -60,13 +60,15 @@ function ProjectCard({ p }) {
     <${GradeRing} score=${score} size=${64} running=${!!p.active_run} />
     <div class="grow card-main">
       <div class="row gap"><strong class="ellipsis">${p.name}</strong>
-        ${p.kind ? html`<span class="pill pill-kind">${p.kind}</span>` : html`<span class="pill pill-skip">unknown</span>`}
+        ${p.kind ? html`<span class="pill pill-kind">${p.kind}</span>` : html`<span class="pill pill-skip">no suite yet</span>`}
+        ${p.mode === 'linked' && html`<span class="tag" title="suites chosen by you">${p.suites.length} linked</span>`}
         ${p.watching && html`<span class="pill pill-watch">👀</span>`}</div>
       <div class="dim small mono ellipsis" title=${p.path}>${p.path}</div>
       <div class="dim small">${p.active_run ? 'running…' : `last run ${timeAgo(p.last_time)}`}</div>
     </div>
     <div class="card-actions">
-      <button class="btn btn-primary btn-sm" onClick=${run} disabled=${!p.kind}>▶ Run</button>
+      <button class="btn btn-primary btn-sm" onClick=${run} disabled=${!p.suites || !p.suites.length}
+        title=${p.suites && p.suites.length ? `runs ${p.suites.join(', ')}` : 'no suite for this project: open it to choose some'}>▶ Run</button>
       <button class="icon-btn" title="Remove from list" onClick=${remove}>✕</button>
     </div>
   </div>`;
@@ -75,16 +77,18 @@ function ProjectCard({ p }) {
 export function Home() {
   const s = useStore();
   const [path, setPath] = useState('');
+  const [kind, setKind] = useState('');
   const [picker, setPicker] = useState(false);
   const add = async (p) => {
     setPicker(false);
     const target = (p || path).trim();
     if (!target) return;
     try {
-      const proj = await api('POST', '/api/projects', { path: target });
+      const proj = await api('POST', '/api/projects', { path: target, kind: kind.trim() });
       await refreshState();
       setPath('');
-      if (!proj.kind) toast('Added, but no installed suite recognises this project yet.', 'warn', 7000);
+      setKind('');
+      if (!proj.suites.length) toast('Added. No suite runs for it yet: choose some with “Suites”.', 'warn', 7000);
       go(projectHref(proj.path));
     } catch (e) { toast(e.message, 'error'); }
   };
@@ -96,9 +100,13 @@ export function Home() {
       <div class="row gap add-row">
         <input class="input grow mono" placeholder="/path/to/your/project   (e.g. ~/libft)" value=${path}
           onInput=${(e) => setPath(e.target.value)} onKeyDown=${(e) => e.key === 'Enter' && add()} />
+        <input class="input mono" style="width:190px" list="dt-kinds-home" placeholder="type (optional)" value=${kind}
+          title="Leave empty to detect it. Any name works, e.g. pipex or my_project." onInput=${(e) => setKind(e.target.value)} />
+        <datalist id="dt-kinds-home">${(s.kinds || []).map((k) => html`<option value=${k} />`)}</datalist>
         <button class="btn" onClick=${() => setPicker(true)}>Browse…</button>
         <button class="btn btn-primary" onClick=${() => add()}>Add project</button>
       </div>
+      <p class="dim small">Any folder works: DeepThought detects libft, get_next_line, ft_printf… For your own projects, give it a type and choose (or create) the suites that test it.</p>
     </section>
 
     <section>

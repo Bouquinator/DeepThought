@@ -13,7 +13,8 @@ const FIELDS = [
   ['cache_dir', 'Cache folder', 'text', 'Where builds happen. Empty = /tmp or goinfre (keeps your home quota free).'],
   ['port', 'Web port', 'number', 'Used the next time you start ./dt'],
   ['open_browser', 'Open the browser on start', 'bool', ''],
-  ['check_updates', 'Check for updates daily', 'bool', 'git fetch once a day, in the background.'],
+  ['auto_update', 'Update automatically at launch', 'bool', 'Every ./dt pulls the latest DeepThought (skipped offline or when you changed files in the tester).'],
+  ['check_updates', 'Check for updates daily', 'bool', 'git fetch once a day, in the background (for the update banner).'],
 ];
 
 export function SettingsPage() {

@@ -31,7 +31,7 @@ def visible(s):
             out.append("→")
         elif o == 0:
             out.append("\\0")
-        elif o < 32 or 127 <= o <= 255:
+        elif o < 32 or 127 <= o <= 159:
             out.append(f"\\x{o:02x}")
         else:
             out.append(ch)
@@ -197,7 +197,8 @@ class Tui:
         if t.get("output"):
             add()
             add("Output:", curses.A_BOLD)
-            add(visible(t["output"]))
+            from deepthought.cli.reporter_plain import decode_output
+            add(visible(decode_output(t["output"])))
         if t.get("source"):
             add()
             add("Test code:", curses.A_BOLD)

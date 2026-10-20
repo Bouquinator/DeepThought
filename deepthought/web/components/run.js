@@ -30,7 +30,7 @@ function counts(run) {
     for (const t of g.tests) {
       total++;
       if (!['pending', 'running'].includes(t.status)) done++;
-      if (FAILED.has(t.status)) failed++;
+      if (FAILED.has(t.status) && g.category !== 'extra') failed++;
     }
     if (g.status === 'build_error' && !g.tests.length) { total++; done++; failed++; }
   }
@@ -82,6 +82,59 @@ export function BuildOptions({ project, onClose, onSaved }) {
   <//>`;
 }
 
+// ------------------------------------------------------------------ project type & suites
+export function ProjectSuites({ project, onClose, onSaved }) {
+  const s = useStore();
+  const proj = s.projects.find((p) => p.path === project) || { linked: [], suites: [], kind: '', mode: 'auto' };
+  const [kind, setKind] = useState(proj.kind_manual ? proj.kind || '' : '');
+  const [chosen, setChosen] = useState(proj.mode === 'linked');
+  const [picked, setPicked] = useState(new Set(proj.mode === 'linked' ? proj.linked : proj.suites));
+  const toggle = (uid) => { const n = new Set(picked); n.has(uid) ? n.delete(uid) : n.add(uid); setPicked(n); setChosen(true); };
+  const byKind = {};
+  for (const x of s.suites) (byKind[x.project] = byKind[x.project] || []).push(x);
+  const effectiveKind = kind.trim() || proj.kind;
+  const save = async (andRun) => {
+    try {
+      await api('POST', '/api/projects/config', { path: project, kind: kind.trim(), suites: chosen ? [...picked] : [] });
+      await refreshState();
+      toast('Project saved', 'success', 1500);
+      onClose();
+      if (andRun && onSaved) onSaved();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  return html`<${Modal} title=${'Suites for ' + project.split('/').pop()} onClose=${onClose} wide>
+    <div class="form">
+      <label>Project type <span class="dim small">(empty = detect automatically${proj.mode === 'auto' && proj.kind ? `: ${proj.kind}` : ''})</span>
+        <input class="input mono" list="dt-kinds" value=${kind} placeholder=${proj.mode === 'auto' && proj.kind ? proj.kind : 'e.g. libft, pipex, my_project…'}
+          onInput=${(e) => setKind(e.target.value)} />
+        <datalist id="dt-kinds">${(s.kinds || []).map((k) => html`<option value=${k} />`)}</datalist>
+        <span class="dim small help">Any name works, even for projects DeepThought doesn't know: suites made for that type (their <code>project</code>) run automatically.</span>
+      </label>
+      <div>
+        <label class="row gap check"><input type="radio" checked=${!chosen} onChange=${() => setChosen(false)} />
+          <span>Automatic: every enabled suite for <strong>${effectiveKind || 'the detected type'}</strong></span></label>
+        <label class="row gap check"><input type="radio" checked=${chosen} onChange=${() => setChosen(true)} />
+          <span>Only the suites I choose below (any suite, whatever project it was made for)</span></label>
+      </div>
+      <div class="picker suite-picker">
+        ${Object.keys(byKind).sort().map((k) => html`<div class="pick-kind">${k}</div>
+          ${byKind[k].map((x) => html`<label class=${'pick-row' + (x.enabled ? '' : ' dim')}>
+            <input type="checkbox" checked=${chosen ? picked.has(x.uid) : proj.suites.includes(x.uid)} onChange=${() => toggle(x.uid)} />
+            <strong>${x.name}</strong> <span class="dim small">${x.uid} · ${x.source}</span>
+            ${!x.enabled && html`<span class="tag">disabled</span>`}
+          </label>`)}`)}
+        ${!s.suites.length && html`<div class="pick-empty dim">No suite installed.</div>`}
+      </div>
+      <p class="small dim">No suite fits? <a href="#/suites">Create or import one</a> and link it to this project.</p>
+      <div class="row gap"><span class="grow"></span>
+        <button class="btn" onClick=${onClose}>Cancel</button>
+        <button class="btn" onClick=${() => save(false)}>Save</button>
+        <button class="btn btn-primary" onClick=${() => save(true)}>Save & run</button>
+      </div>
+    </div>
+  <//>`;
+}
+
 // ------------------------------------------------------------------ header
 function RunHeader({ run, project }) {
   const s = useStore();
@@ -89,6 +142,7 @@ function RunHeader({ run, project }) {
   const running = run.status === 'running' || run.status === 'pending';
   const [opts, setOpts] = useState({ sanitize: !!run.options.sanitize, leaks: run.options.leaks !== false });
   const [buildOpen, setBuildOpen] = useState(false);
+  const [suitesOpen, setSuitesOpen] = useState(false);
   const build = run.options.build;
   const proj = s.projects.find((p) => p.path === run.project.path) || {};
 
@@ -152,7 +206,9 @@ function RunHeader({ run, project }) {
         <button class=${'btn btn-sm' + (proj.watching ? ' btn-on' : '')} onClick=${toggleWatch} title="Re-run automatically when you save a file">👀 Watch</button>
         <button class="btn btn-sm" disabled=${running} onClick=${() => rerunAll(true)} title="make fclean, then rebuild from scratch">Clean build</button>
         <button class=${'btn btn-sm' + (proj.build && Object.keys(proj.build).length ? ' btn-on' : '')} onClick=${() => setBuildOpen(true)} title="Build command, make arguments, environment">⚙ Build</button>
+        <button class=${'btn btn-sm' + (proj.mode && proj.mode !== 'auto' ? ' btn-on' : '')} onClick=${() => setSuitesOpen(true)} title="Project type and the suites that run for it">☰ Suites</button>
       </div>
+      ${suitesOpen && html`<${ProjectSuites} project=${run.project.path} onClose=${() => setSuitesOpen(false)} onSaved=${() => rerunAll(false)} />`}
       ${buildOpen && html`<${BuildOptions} project=${run.project.path} onClose=${() => setBuildOpen(false)} onSaved=${() => rerunAll(false)} />`}
       <div class="row gap small">
         <label class="toggle" title="Rebuild with AddressSanitizer + UBSan: exact crash location"><input type="checkbox" checked=${opts.sanitize} onChange=${(e) => setOpts({ ...opts, sanitize: e.target.checked })} /> Sanitizer</label>
@@ -191,6 +247,7 @@ function Tree({ run, sel, onSelect, filter, q }) {
           <${StatusIcon} status=${g.status} />
           <span class="grow ellipsis">${g.name}</span>
           ${g.category === 'bonus' && html`<span class="tag">bonus</span>`}
+          ${g.category === 'extra' && html`<span class="tag" title="informational: not graded">info</span>`}
           <span class="dim small">${g.tests.length ? `${nPass}/${nRun}` : g.status === 'skip' ? 'skipped' : ''}</span>
         </div>
         ${open && tests.map((t) => html`
@@ -256,7 +313,7 @@ export function RunView({ run }) {
   }
   if (!detail) detail = html`<${Summary} run=${run} onSelect=${setSel} />`;
 
-  const nFailed = run.groups.reduce((n, g) => n + g.tests.filter((t) => FAILED.has(t.status)).length, 0);
+  const nFailed = run.groups.reduce((n, g) => n + (g.category === 'extra' ? 0 : g.tests.filter((t) => FAILED.has(t.status)).length), 0);
   return html`<div class="run">
     <${RunHeader} run=${run} />
     <${Stages} run=${run} sel=${sel} onSelect=${setSel} />
@@ -305,18 +362,22 @@ export function ProjectPage({ path }) {
   const run = runId && s.runs[runId];
   if (run) return html`<${RunView} run=${run} />`;
   if (runId && !err) return html`<div class="boot">Loading…</div>`;
+  const [suitesOpen, setSuitesOpen] = useState(false);
+  const ready = proj && proj.suites && proj.suites.length > 0;
   return html`<${Empty} title=${proj ? proj.name : path.split('/').pop()}>
     <p class="mono dim">${path}</p>
-    ${proj && proj.kind
-      ? html`<p>Detected project: <span class="pill pill-kind">${proj.kind}</span> — ${proj.suites.length} suite(s) will run.</p>
-          <p class="small dim">Build: <code>${(proj.build && proj.build.command) || proj.default_build || 'none'}</code>${proj.build && proj.build.make_args ? html` + <code>${proj.build.make_args}</code>` : ''}</p>
-          <div class="row gap" style="justify-content:center">
-            <button class="btn btn-primary btn-lg" onClick=${() => startRun(path)}>▶ Run the tests</button>
-            <button class="btn btn-lg" onClick=${() => setBuildOpen(true)}>⚙ Build options</button>
-          </div>
-          ${buildOpen && html`<${BuildOptions} project=${path} onClose=${() => setBuildOpen(false)} onSaved=${() => startRun(path)} />`}`
-      : html`<p>No installed suite recognises this folder. Check <a href="#/suites">Suites</a>, or run a specific suite:</p>
-          <div class="row gap wrap">${s.suites.filter((x) => x.enabled).map((x) => html`<button class="btn" onClick=${() => startRun(path, {}, [x.uid])}>${x.name}</button>`)}</div>`}
+    ${ready
+      ? html`<p>Project type <span class="pill pill-kind">${proj.kind || 'custom'}</span> — ${proj.suites.length} suite(s) will run${proj.mode === 'linked' ? ' (chosen by you)' : ''}.</p>
+          <p class="small dim">Build: <code>${(proj.build && proj.build.command) || proj.default_build || 'none'}</code>${proj.build && proj.build.make_args ? html` + <code>${proj.build.make_args}</code>` : ''}</p>`
+      : html`<p>No suite runs for this project yet${proj && proj.kind ? html` (type <span class="pill pill-kind">${proj.kind}</span>)` : ''}.</p>
+          <p class="small">Choose suites for it (any suite, even one made for another project), give it a type, or <a href="#/suites">create a suite</a>.</p>`}
+    <div class="row gap" style="justify-content:center">
+      ${ready && html`<button class="btn btn-primary btn-lg" onClick=${() => startRun(path)}>▶ Run the tests</button>`}
+      <button class=${'btn btn-lg' + (ready ? '' : ' btn-primary')} onClick=${() => setSuitesOpen(true)}>☰ Suites${ready ? '' : ' for this project'}</button>
+      <button class="btn btn-lg" onClick=${() => setBuildOpen(true)}>⚙ Build options</button>
+    </div>
+    ${buildOpen && html`<${BuildOptions} project=${path} onClose=${() => setBuildOpen(false)} onSaved=${() => startRun(path)} />`}
+    ${suitesOpen && html`<${ProjectSuites} project=${path} onClose=${() => setSuitesOpen(false)} onSaved=${() => startRun(path)} />`}
   <//>`;
 }
 

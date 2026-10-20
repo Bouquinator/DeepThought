@@ -1,5 +1,24 @@
 {
   "_about": "Community suites shown in the web UI (Suites > Discover). To list yours, open a pull request adding an entry. See docs/writing-suites.md#sharing-your-suite",
   "version": 1,
-  "suites": []
+  "suites": [
+    {
+      "name": "Sstyle suite — libft",
+      "project": "libft",
+      "path": "community/sstyle/libft",
+      "bundled": true,
+      "author": "SStyles93",
+      "url": "https://github.com/SStyles93/42_CodeTester",
+      "description": "SStyles93's CodeTester for libft (43 functions + malloc-failure memory suite), run unmodified."
+    },
+    {
+      "name": "Sstyle suite — ft_printf",
+      "project": "ft_printf",
+      "path": "community/sstyle/ft_printf",
+      "bundled": true,
+      "author": "SStyles93",
+      "url": "https://github.com/SStyles93/42_CodeTester",
+      "description": "SStyles93's CodeTester for ft_printf: compared with the system printf, subject requirements, bonus flags, original-printf behaviour (informational)."
+    }
+  ]
 }

@@ -1,6 +1,7 @@
 """The tester updates itself with git (fetch + pull --ff-only)."""
 
 import json
+import os
 import threading
 import time
 
@@ -72,3 +73,46 @@ def update():
     changes = git.log_between(paths.REPO_ROOT, old, new)
     check(fetch=False)
     return True, f"updated {old[:7]} → {new[:7]} — restart dt to load the new version", changes
+
+
+def auto_update(timeout=6):
+    """Update at launch: quick fetch, then fast-forward when it is safe.
+
+    Returns (updated, message). Never raises and never blocks for long: offline,
+    no upstream, local changes or a diverged branch simply skip the update.
+    """
+    if os.environ.get("DT_NO_UPDATE"):
+        return False, ""
+    root = paths.REPO_ROOT
+    if not git.is_repo(root):
+        return False, ""
+    try:
+        upstream = git._git(["rev-parse", "--abbrev-ref", "@{u}"], cwd=root)
+    except git.GitError:
+        return False, ""
+    try:
+        git._git(["fetch", "--quiet"], cwd=root, timeout=timeout, batch=True)
+    except git.GitError:
+        return False, "update check skipped (offline?)"
+    try:
+        ahead, behind = (int(x) for x in
+                         git._git(["rev-list", "--left-right", "--count", "HEAD...@{u}"], cwd=root).split())
+        dirty = git._git(["status", "--porcelain", "--untracked-files=no"], cwd=root).strip()
+    except (git.GitError, ValueError):
+        return False, ""
+    if behind == 0:
+        check(fetch=False)
+        return False, ""
+    if dirty:
+        check(fetch=False)
+        return False, (f"{behind} update(s) available on {upstream}, not installed: the tester repo has "
+                       "local changes (stash them, or run `./dt update` after)")
+    if ahead:
+        return False, f"{behind} update(s) available, but your branch has {ahead} local commit(s): run `git pull` yourself"
+    try:
+        old, new = git.update(root)
+    except git.GitError as e:
+        return False, f"automatic update failed: {e}"
+    check(fetch=False)
+    changes = git.log_between(root, old, new, limit=5)
+    return True, f"updated {old[:7]} → {new[:7]}" + "".join(f"\n    {c}" for c in changes)

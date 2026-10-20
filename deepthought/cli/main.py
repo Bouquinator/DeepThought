@@ -166,6 +166,8 @@ def cmd_suite(args):
                     return 1
             s = registry.add(spec, args.ref or "")
             print(c(f"✓ added {s.name} ({s.id} v{s.version}, project={s.project})", "green"))
+            if args.link:
+                _link(manager, args.link, s.uid)
             del preview
         elif args.action == "remove":
             s = registry.remove(args.target)
@@ -177,8 +179,13 @@ def cmd_suite(args):
         elif args.action == "new":
             dest = registry.create(args.target, args.project or "libft", args.runner, args.dir)
             print(c(f"✓ created {dest}", "green"))
-            print(f"  edit {dest / 'suite.toml'} and the files in {dest / 'tests'}")
-            print(f"  then: ./dt run <your project> --suite {Path(dest).name}")
+            if args.link:
+                registry.reload()
+                created = next(x for x in registry.all() if Path(x.path).resolve() == Path(dest).resolve())
+                _link(manager, args.link, created.uid)
+            print(f"  edit {dest / 'suite.toml'} and the files in {dest}")
+            if not args.link:
+                print(f"  then link it to your project: ./dt project link <your project> {Path(dest).name}")
         elif args.action == "pack":
             dest = registry.pack(args.target, args.out or ".")
             print(c(f"✓ wrote {dest}", "green"))
@@ -192,6 +199,15 @@ def cmd_suite(args):
         print(c(f"error: {e}", "red"))
         return 1
     return 0
+
+
+def _link(manager, project, uid):
+    from deepthought.cli.reporter_plain import c
+
+    path = str(Path(project).expanduser().resolve())
+    _, _, current = manager.suites_for(path)
+    manager.projects.link(path, uid, current=[s.uid for s in current])
+    print(c(f"✓ linked {uid} to {Path(path).name}", "green"))
 
 
 def validate_suite(path, project, manager):
@@ -224,6 +240,57 @@ def validate_suite(path, project, manager):
     data = manager.get(run.id)
     reporter.summary(data)
     return exit_code(data)
+
+
+# ------------------------------------------------------------------ projects
+def cmd_project(args):
+    from deepthought.cli.reporter_plain import c
+    from deepthought.core.registry import RegistryError
+
+    config, registry, manager = _manager()
+    store = manager.projects
+    try:
+        if args.action == "list":
+            items = store.all()
+            if not items:
+                print("no project yet: ./dt project add PATH")
+            for p in items:
+                mode, kind, suites = manager.suites_for(p["path"])
+                label = {"linked": "linked suites", "kind": "own type", "auto": "detected"}[mode]
+                print(f"  {c(p['name'], 'bold'):<30} {c(kind or '?', 'cyan')}  [{label}]  {c(p['path'], 'dim')}")
+                print(c(f"      suites: {', '.join(s.uid for s in suites) or 'none: link one with `dt project link`'}", "dim"))
+            return 0
+        if not args.path:
+            print(c("error: a project path is required", "red"))
+            return 2
+        path = str(Path(args.path).expanduser().resolve())
+        if not Path(path).is_dir():
+            print(c(f"error: {path} is not a directory", "red"))
+            return 2
+        if args.action == "add":
+            store.add(path, args.values[0] if args.values else "", manual=bool(args.values))
+        elif args.action == "kind":
+            if not args.values:
+                print(c("usage: dt project kind PATH TYPE   (TYPE 'auto' = detect again)", "red"))
+                return 2
+            store.configure(path, kind="" if args.values[0] == "auto" else args.values[0])
+        elif args.action == "link":
+            _, _, current = manager.suites_for(path)
+            for uid in args.values:
+                store.link(path, registry.get(uid).uid, current=[s.uid for s in current])
+                current = []
+        elif args.action == "unlink":
+            for uid in args.values:
+                store.unlink(path, registry.get(uid).uid)
+        elif args.action == "auto":
+            store.configure(path, kind="", suites=[])
+        mode, kind, suites = manager.suites_for(path)
+        print(c(f"✓ {Path(path).name}: type {kind or '?'} ({mode}), suites: "
+                f"{', '.join(s.uid for s in suites) or 'none'}", "green"))
+    except RegistryError as e:
+        print(c(f"error: {e}", "red"))
+        return 1
+    return 0
 
 
 # ------------------------------------------------------------------ misc
@@ -355,7 +422,14 @@ def build_parser():
     s.add_argument("--dir", help="create the suite in this folder instead of ~/.deepthought (new)")
     s.add_argument("-o", "--out", help="output folder (pack)")
     s.add_argument("-y", "--yes", action="store_true", help="do not ask for confirmation")
+    s.add_argument("--link", metavar="PROJECT", help="also link the suite to this project folder (add, new)")
     s.set_defaults(func=cmd_suite)
+
+    pr = sub.add_parser("project", help="your projects: type and linked suites")
+    pr.add_argument("action", choices=["list", "add", "kind", "link", "unlink", "auto"])
+    pr.add_argument("path", nargs="?", help="project folder")
+    pr.add_argument("values", nargs="*", help="add: [TYPE] · kind: TYPE|auto · link/unlink: SUITE…")
+    pr.set_defaults(func=cmd_project)
 
     up = sub.add_parser("update", help="update the tester (git pull) and git suites")
     up.add_argument("--check", action="store_true", help="only check")
@@ -371,8 +445,33 @@ def build_parser():
     return p
 
 
+def _auto_update(argv):
+    """Pull the latest tester before running anything, then restart on it."""
+    import os
+
+    from deepthought.cli.reporter_plain import c
+    from deepthought.core import selfupdate
+    from deepthought.core.config import Config
+
+    if not Config()["auto_update"]:
+        return
+    updated, message = selfupdate.auto_update()
+    if message:
+        print(c(f"⬆  DeepThought {message}", "cyan" if updated else "yellow"), file=sys.stderr)
+    if updated:
+        os.environ["DT_NO_UPDATE"] = "1"  # the restarted process must not loop
+        sys.stdout.flush()
+        from deepthought.core import paths
+
+        os.execv(sys.executable, [sys.executable, str(paths.PKG_DIR / "__main__.py"), *argv])
+
+
 def main(argv=None):
-    argv = sys.argv[1:] if argv is None else argv
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if "--no-update" in argv:
+        argv.remove("--no-update")
+    elif not set(argv) & {"-h", "--help", "--version", "update"}:
+        _auto_update(argv)
     parser = build_parser()
     if not argv or (argv[0] not in parser._subparsers._group_actions[0].choices and not argv[0].startswith("-")):
         argv = ["ui", *argv]

@@ -18,6 +18,7 @@ DEFAULTS = {
     "port": 4242,
     "open_browser": True,
     "check_updates": True,
+    "auto_update": True,
     "editor": "vscode",
     "disabled_suites": [],
 }

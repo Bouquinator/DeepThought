@@ -43,6 +43,35 @@ class SelfUpdateTests(unittest.TestCase):
                 self.assertTrue(any("better tests" in c for c in changes))
                 self.assertFalse(selfupdate.check(fetch=False)["available"])
 
+    def test_auto_update_at_launch(self):
+        import os
+
+        fresh_home()
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            git("init", "-q", "-b", "main", str(d / "up"), cwd=d)
+            (d / "up" / "f.txt").write_text("v1")
+            git("add", ".", cwd=d / "up")
+            git("commit", "-qm", "v1", cwd=d / "up")
+            git("clone", "-q", str(d / "up"), str(d / "clone"), cwd=d)
+            clone = d / "clone"
+            with mock.patch.object(paths, "REPO_ROOT", clone):
+                self.assertEqual(selfupdate.auto_update(), (False, ""))        # nothing new
+                (d / "up" / "f.txt").write_text("v2")
+                git("commit", "-qam", "v2", cwd=d / "up")
+                (clone / "f.txt").write_text("mine")                              # local edit: never overwritten
+                updated, msg = selfupdate.auto_update()
+                self.assertFalse(updated)
+                self.assertIn("local changes", msg)
+                git("checkout", "f.txt", cwd=clone)
+                with mock.patch.dict(os.environ, {"DT_NO_UPDATE": "1"}):
+                    self.assertEqual(selfupdate.auto_update(), (False, ""))    # opt-out
+                updated, msg = selfupdate.auto_update()
+                self.assertTrue(updated, msg)
+                self.assertEqual((clone / "f.txt").read_text(), "v2")
+                git("remote", "set-url", "origin", str(d / "missing"), cwd=clone)
+                self.assertEqual(selfupdate.auto_update()[0], False)              # offline: skipped
+
 
 if __name__ == "__main__":
     unittest.main()
