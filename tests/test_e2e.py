@@ -81,25 +81,26 @@ class EndToEnd(unittest.TestCase):
         self.assertIn("Mandatory  [BUFFER_SIZE=10000000]", variants)
 
     def test_sstyle_community_suites(self):
-        """The Sstyle suites download SStyles93's CodeTester (network) and run it unmodified."""
+        """SStyles93's tests, ported: the expected verdicts on the reference projects."""
         run = self.run_project(FIXTURES / "libft_good")
-        fetch = next((x for x in run["stages"] if x["id"] == "fetch"), None)
-        if fetch is None or fetch["status"] != "pass":
-            self.skipTest("CodeTester could not be downloaded (offline?)")
         self.assertEqual(run["suites"][0]["uid"], "sstyle-libft")
         st = statuses(run)
-        self.assertEqual(st["Libft/ft_split"], "pass")
-        self.assertEqual(st["Libft/ft_lstmap"], "pass")
-        self.assertEqual(st["Libft/ft_strdup"], "fail")   # the CodeTester requires ft_strdup(NULL) protection
-        strdup = next(t for g in run["groups"] for t in g["tests"] if t["id"] == "Libft/ft_strdup")
-        self.assertIn("CRASH", strdup["asserts"][0]["msg"])
-        self.assertTrue(strdup["file"].endswith("tests/libft/test_strdup.c"))
+        self.assertGreater(len(st), 150)
+        self.assertEqual(st["ft_split/single_word_no_sep"], "pass")
+        self.assertEqual(st["ft_lstmap/scenario"], "pass")
+        self.assertEqual(st["memory/ft_split"], "pass")             # malloc failures, on every platform
+        bad = {k: v for k, v in st.items() if v != "pass"}
+        self.assertEqual(bad, {"ft_strdup/null_input_to_null_return_without": "crash"})  # requires NULL protection
+        t = next(t for g in run["groups"] for t in g["tests"] if t["id"] == "ft_strlcpy/truncation")
+        self.assertTrue(t["file"].endswith("community/sstyle/libft/tests/test_strlcpy.c"))
         run = self.run_project(FIXTURES / "printf_good")
         st = statuses(run)
-        self.assertEqual(st["Printf_mandatory/printf_p"], "pass")
-        self.assertEqual(st["Printf_mandatory/printf_project"], "pass")
+        self.assertEqual(st["printf_p/null"], "pass")
+        self.assertEqual(st["printf_project/files"], "pass")
+        self.assertEqual(st["printf_project/no_relink"], "pass")
+        self.assertEqual(st["printf_behavior/write_errors"], "fail")  # the reference returns -N, not -1
         extra = [g for g in run["groups"] if g["category"] == "extra"]
-        self.assertTrue(extra and all(t["id"].startswith("Printf_original/") for g in extra for t in g["tests"]))
+        self.assertTrue(extra and all(t["id"].startswith("original_") for g in extra for t in g["tests"]))
 
     def test_project_build_options(self):
         path = FIXTURES / "libft_good"

@@ -44,7 +44,6 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(by_id["get_next_line"].source, "builtin")
         self.assertEqual(by_id["sstyle-libft"].source, "community")
         self.assertEqual(by_id["sstyle-ft_printf"].source, "community")
-        self.assertEqual(by_id["sstyle-libft"].fetch[0]["name"], "codetester")
         with self.assertRaises(RegistryError):
             self.reg.remove("sstyle-libft")
 

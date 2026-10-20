@@ -58,11 +58,11 @@ Every **Test** / **Retest** (including *Retest failed* and watch-mode runs) firs
 
 | project | suite | what is tested |
 |---|---|---|
-| **libft** | **Sstyle suite** (community) | [SStyles93's CodeTester](https://github.com/SStyles93/42_CodeTester), run unmodified: all 43 functions (lists as bonus) and its malloc-failure memory suite (Linux). DeepThought adds Makefile rules, relink, norminette and forbidden-function checks. |
-| **ft_printf** | **Sstyle suite** (community) | The CodeTester's printf tests: every case compared with the system's `printf` (bytes and return value), behaviour (buffering, write errors), subject requirements (Makefile, relink, `nm`, README), bonus flags, plus the original printf's undefined behaviours (informational, not graded). |
+| **libft** | **Sstyle suite** (community) | SStyles93's tests, ported to DeepThought: all 43 functions, one test per case, plus a Memory group (no leak, NULL without leaking when any malloc fails) for every allocating function. DeepThought adds Makefile rules, relink, norminette and forbidden-function checks. |
+| **ft_printf** | **Sstyle suite** (community) | SStyles93's printf tests: every case compared with the system's `printf` (bytes and return value), behaviour (no buffering, -1 on write errors, malloc failures), subject requirements (Makefile, relink, `nm`), bonus flags, plus the original printf's undefined behaviours (informational, not graded). |
 | **get_next_line** | official | Every test with `BUFFER_SIZE` = 1, 42, 9999 and 10000000: empty file, no final newline, only newlines, 10 000-char lines, 75 KB file, stdin, pipes, invalid/closed fds, read errors, malloc failure, leaks after EOF. Bonus: interleaved fds. |
 
-Community suites live in [`community/`](community). The Sstyle suites download the CodeTester (pinned commit) the first time they run. Run `./dt suite list` to see what's installed.
+Community suites live in [`community/`](community). Run `./dt suite list` to see what's installed.
 
 ## Your own projects
 

@@ -309,6 +309,35 @@ int	dt_check_sign(long long actual, long long expected, int fatal,
 	return (finish_check(sa == se, fatal));
 }
 
+int	dt_check_bool(long long actual, long long expected, int fatal,
+	const char *expr, const char *file, int line)
+{
+	int	ok;
+
+	ok = (!actual == !expected);
+	if (!ok)
+		report_assert(0, expr, expected ? "true" : "false", strlen(expected ? "true" : "false"),
+			actual ? "true" : "false", strlen(actual ? "true" : "false"), file, line);
+	return (finish_check(ok, fatal));
+}
+
+int	dt_check_char(char actual, char expected, int fatal,
+	const char *expr, const char *file, int line)
+{
+	return (dt_check_bytes(&actual, 1, &expected, 1, fatal, expr, file, line));
+}
+
+void	dt_failf_at(const char *file, int line, const char *fmt, ...)
+{
+	char	msg[1024];
+	va_list	ap;
+
+	va_start(ap, fmt);
+	vsnprintf(msg, sizeof(msg), fmt, ap);
+	va_end(ap);
+	dt_check(0, 0, msg, "", "", file, line);
+}
+
 int	dt_check_ptr(const void *actual, const void *expected, int fatal,
 	const char *expr, const char *file, int line)
 {

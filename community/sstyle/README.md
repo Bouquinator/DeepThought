@@ -1,20 +1,20 @@
 # Sstyle suite
 
-DeepThought community suites wrapping **[SStyles93's CodeTester](https://github.com/SStyles93/42_CodeTester)**, an interactive C tester for 42's libft and ft_printf.
+Tests written by **SStyles93** for the [CodeTester](https://github.com/SStyles93/42_CodeTester), ported to DeepThought with the author's permission.
 
-| suite | project | what it runs |
+| suite | project | contents |
 |---|---|---|
-| `sstyle-libft` | libft | the CodeTester's 43 function suites (lists as bonus) + its `memory` suite (malloc failures, Linux only) |
-| `sstyle-ft_printf` | ft_printf | `Printf_mandatory` (conversions, behaviour, subject requirements), `Printf_bonus` (flags), `Printf_original` (informational: not graded) |
+| `sstyle-libft` | libft | every function of Part 1 and 2 (one test per case), a **Memory** group (each allocating function: no leak, and NULL without leaking when any of its mallocs fails), bonus lists |
+| `sstyle-ft_printf` | ft_printf | **Mandatory**: each conversion compared with the system's `printf` (bytes and return value), behaviour (no buffering, -1 on write errors, malloc failures), the subject's requirements (files, Makefile, relink, `nm`). **Bonus**: flags and the bonus rule. **Original printf behaviour**: undefined-behaviour cases, informational (not graded) |
 
-## How it works
+## How it was ported
 
-- **The tests are the CodeTester's, unmodified.** On first use DeepThought downloads the repository, pinned to a commit (`[[fetch]]` in each `suite.toml`), into `upstream/` (git-ignored).
-- The CodeTester's own sources are compiled with your library: `src/utils.c`, `src/runner.c`, `src/memcheck.c`, and every file of `tests/`. Only its command-line entry point (`src/main.c`, `src/menu.c`) is replaced by [`adapter/dt_sstyle.c`](adapter/dt_sstyle.c).
-- The adapter registers **each CodeTester suite as one DeepThought test** and runs it with the CodeTester's own `run_suite()` in verbose mode. Each `✗` line of its report becomes a failure with expected / actual values. The full report is the test's output, and the test's source is the CodeTester function.
-- Link flags follow the CodeTester's Makefile: the whole `libft.a` (`-all_load` / `--whole-archive`) and `-u ft_printf`. On Linux, `--wrap=malloc` enables its memory suites.
-- `ft_printf`'s groups run one after another (`sequential = true`), because `printf_project` runs `make` inside the project.
+The CodeTester's cases, inputs, expected values and labels are unchanged. Only the plumbing changed:
 
-## Updating
+- each `test_ft_x(t_ctx *)` suite became `DT_TEST`s, split along the author's case comments (`/* truncation: size smaller than src */` → `ft_strlcpy/truncation`). Labelled helper calls became one test per call. Suites whose cases build on each other (the list functions) stay one test, run in order;
+- `check_*(ctx, label, expected, got)` became DeepThought's labelled checks `DT_CHECK_*(label, got, expected)`, so every failure shows the author's label with expected and got;
+- the memory checks (Linux-only `--wrap=malloc` in the CodeTester) use DeepThought's allocation hooks and now also run on macOS;
+- crash-prone cases (`ft_printf(NULL)`, trailing `%`) are their own tests, since every DeepThought test is its own process;
+- one test file per function (`split = true`): a missing function only fails its own tests.
 
-To follow a newer CodeTester, change `ref` in both `suite.toml` files (a commit hash) and run `./dt suite update sstyle-libft`. The tests belong to their author: report missing cases or bugs [upstream](https://github.com/SStyles93/42_CodeTester).
+Missing cases or a wrong expectation? Tell the author [upstream](https://github.com/SStyles93/42_CodeTester) and update the port here.

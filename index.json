@@ -9,7 +9,7 @@
       "bundled": true,
       "author": "SStyles93",
       "url": "https://github.com/SStyles93/42_CodeTester",
-      "description": "SStyles93's CodeTester for libft (43 functions + malloc-failure memory suite), run unmodified."
+      "description": "SStyles93's libft tests, ported to DeepThought: every function, one test per case, malloc-failure and leak checks."
     },
     {
       "name": "Sstyle suite — ft_printf",
@@ -18,7 +18,7 @@
       "bundled": true,
       "author": "SStyles93",
       "url": "https://github.com/SStyles93/42_CodeTester",
-      "description": "SStyles93's CodeTester for ft_printf: compared with the system printf, subject requirements, bonus flags, original-printf behaviour (informational)."
+      "description": "SStyles93's ft_printf tests, ported to DeepThought: compared with the system printf, behaviour, subject requirements, bonus flags, original-printf behaviour (informational)."
     }
   ]
 }

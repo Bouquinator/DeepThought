@@ -34,7 +34,7 @@ deepthought/
   server/     app.py (HTTP + auth) · api.py (JSON routes) · sse.py (live events)
   web/        index.html · app.js (store, router, SSE) · components/*.js · styles/app.css · vendor/
 suites/       official suites (get_next_line)
-community/    bundled community suites (sstyle: SStyles93's CodeTester for libft and ft_printf)
+community/    bundled community suites (sstyle: SStyles93's libft and ft_printf tests, ported)
 templates/    scaffolds for `dt suite new` (one per runner)
 examples/     complete example projects + suites (python-unit, exec)
 tests/        the engine's own tests + fixture projects (reference and deliberately broken)
@@ -138,7 +138,7 @@ A background check runs at most once a day (`check_updates` setting), and the re
 ## Extending DeepThought
 
 - **A new suite**: no code change. See [writing-suites.md](writing-suites.md).
-- **An existing tester**: wrap it as a suite without touching its tests (`[[fetch]]` + a small adapter). [`community/sstyle`](../community/sstyle) is a complete example.
+- **An existing tester**: port its tests (labelled checks make this mostly mechanical, see [`community/sstyle`](../community/sstyle)), or wrap it untouched with `[[fetch]]` and an adapter or a `script` runner.
 - **A new language with function-level tests**: write a harness that speaks [DTP](protocol.md) and a runner subclassing `DTPProcessRunner` (implement `command()` and optionally `prepare()`), then register it in `runners/__init__.py` and `manifest.RUNNERS`. `python_unit.py` is a 30-line example.
 - **A new project check**: a function `(ctx, suite, stage)` that fills the `StageState`, registered in `checks/__init__.py` and `manifest.CHECKS`.
 - **The UI**: edit the files in `deepthought/web/`. There is no build step, so reload the page.
@@ -149,4 +149,4 @@ A background check runs at most once a day (`check_updates` setting), and the re
 python3 -m unittest discover -s tests -t .
 ```
 
-This covers manifest validation, workspace sync, scoring, the registry (folder/zip/git, zip-slip), self-update against a local upstream, the HTTP API and its security checks, and end-to-end runs. The end-to-end runs check that every planted bug in `tests/fixtures/libft_broken` gets exactly the expected status (using `tests/fixtures/engine-suite`, a test-only libft subset), that the reference get_next_line passes 100%, that custom project types and linked suites resolve correctly, and that the Sstyle suites download and run the CodeTester (skipped offline).
+This covers manifest validation, workspace sync, scoring, the registry (folder/zip/git, zip-slip), self-update against a local upstream, the HTTP API and its security checks, and end-to-end runs. The end-to-end runs check that every planted bug in `tests/fixtures/libft_broken` gets exactly the expected status (using `tests/fixtures/engine-suite`, a test-only libft subset), that the reference get_next_line passes 100%, that custom project types and linked suites resolve correctly, and that the Sstyle suites give the expected verdicts on the reference libft and ft_printf.

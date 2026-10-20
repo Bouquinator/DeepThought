@@ -75,6 +75,17 @@ def extract_source(file, line, max_lines=60):
     return "\n".join(out)
 
 
+def _text(value):
+    """Descriptive strings (labels, inputs, notes) are UTF-8 text sent byte by byte
+    by the C harness: decode them. Compared values are left as raw bytes."""
+    if not isinstance(value, str):
+        return value
+    try:
+        return value.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return value
+
+
 def context_lines(file, line, radius=3):
     """A few lines around file:line, for asserts that live in helper functions."""
     try:
@@ -561,7 +572,7 @@ class RunManager:
             for ev in found:
                 tid = ev["id"]
                 ts = TestState(tid=f"{gs.gid}::{tid}", id=tid, name=ev.get("name") or tid.split("/")[-1],
-                               gid=gs.gid, desc=ev.get("desc", ""), file=ev.get("file", ""),
+                               gid=gs.gid, desc=_text(ev.get("desc", "")), file=ev.get("file", ""),
                                line=int(ev.get("line") or 0))
                 ts.source = extract_source(ts.file, ts.line) if ts.file else ""
                 ts.repro = runner.repro(tid)
@@ -589,21 +600,22 @@ class RunManager:
                 elif t == "assert" and not ev.get("ok", False):
                     if len(ts.asserts) < MAX_ASSERTS:
                         a = {k: ev.get(k) for k in ("msg", "expected", "actual", "file", "line", "input", "cmp")}
+                        a["msg"], a["input"] = _text(a["msg"]), _text(a["input"])
                         body_end = ts.line + ts.source.count("\n")
                         if a["file"] and a["line"] and not (a["file"] == ts.file and ts.line <= a["line"] <= body_end):
                             a["context"] = context_lines(a["file"], int(a["line"]))
                         ts.asserts.append(a)
                 elif t == "log":
-                    ts.logs.append(str(ev.get("msg", "")))
+                    ts.logs.append(_text(str(ev.get("msg", ""))))
                 elif t == "input":
-                    ts.input = str(ev.get("value", ""))
+                    ts.input = _text(str(ev.get("value", "")))
                 elif t == "leak":
                     ts.leaks = {"bytes": ev.get("bytes", 0), "count": ev.get("count", 0)}
                 elif t == "end":
                     ts.status = ev.get("status", ERROR)
                     ts.ms = int(ev.get("ms") or 0)
                     ts.signal = ev.get("signal", "")
-                    ts.reason = ev.get("reason", "")
+                    ts.reason = _text(ev.get("reason", ""))
                     ts.output = ev.get("output", "")
                     ts.exit = ev.get("exit")
                     sanitizer = _asan_reason(ts.output) if ts.output else ""

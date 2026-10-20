@@ -43,6 +43,7 @@ void	dt_malloc_reset(void) {}
 int		dt_malloc_calls(void) { return (-1); }
 void	dt_leaks_ignore(void) {}
 size_t	dt_alloc_size(const void *p) { (void)p; return (0); }
+size_t	dt_alloc_live(void) { return (0); }
 
 #else
 
@@ -296,6 +297,22 @@ int	dt_malloc_calls(void)
 void	dt_leaks_ignore(void)
 {
 	g_ignore_leaks = 1;
+}
+
+size_t	dt_alloc_live(void)
+{
+	size_t	i;
+	size_t	n;
+
+	n = 0;
+	i = 0;
+	while (i < DT_TABLE_SIZE)
+	{
+		if (g_table[i].ptr && g_table[i].ptr != (void *)1)
+			n++;
+		i++;
+	}
+	return (n);
 }
 
 size_t	dt_alloc_size(const void *ptr)

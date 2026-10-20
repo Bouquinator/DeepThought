@@ -67,6 +67,11 @@ int		dt_check_bytes(const void *actual, size_t alen, const void *expected,
 			int line);
 int		dt_check_sign(long long actual, long long expected, int fatal,
 			const char *expr, const char *file, int line);
+int		dt_check_bool(long long actual, long long expected, int fatal,
+			const char *expr, const char *file, int line);
+int		dt_check_char(char actual, char expected, int fatal,
+			const char *expr, const char *file, int line);
+void	dt_failf_at(const char *file, int line, const char *fmt, ...);
 void	dt_note(const char *fmt, ...);
 /* describe the input being tested: shown with every failure (and crash) that follows */
 void	dt_input(const char *fmt, ...);
@@ -112,6 +117,28 @@ void	dt_fail(const char *msg, const char *file, int line);
 				"allocated size of " #ptr, __FILE__, __LINE__); \
 	} while (0)
 
+/*
+** Labelled checks: the label (any text, usually the call or the input) is
+** what the failure shows, instead of the C expression.
+**   DT_CHECK_STR("ft_substr(\"hello\", 1, 3)", got, "ell");
+*/
+# define DT_CHECK(label, cond) \
+	dt_check(!!(cond), 0, (label), "true", "false", __FILE__, __LINE__)
+# define DT_CHECK_BOOL(label, a, e) dt_check_bool((a), (e), 0, (label), __FILE__, __LINE__)
+# define DT_CHECK_INT(label, a, e)  dt_check_int((a), (e), 0, (label), __FILE__, __LINE__)
+# define DT_CHECK_UINT(label, a, e) dt_check_uint((a), (e), 0, (label), __FILE__, __LINE__)
+# define DT_CHECK_SIZE(label, a, e) dt_check_uint((a), (e), 0, (label), __FILE__, __LINE__)
+# define DT_CHECK_CHAR(label, a, e) dt_check_char((a), (e), 0, (label), __FILE__, __LINE__)
+# define DT_CHECK_PTR(label, a, e)  dt_check_ptr((a), (e), 0, (label), __FILE__, __LINE__)
+# define DT_CHECK_STR(label, a, e)  dt_check_str((a), (e), 0, (label), __FILE__, __LINE__)
+# define DT_CHECK_MEM(label, a, e, n) dt_check_mem((a), (e), (n), 0, (label), __FILE__, __LINE__)
+# define DT_CHECK_NULL(label, p) \
+	dt_check((p) == NULL, 0, (label), "NULL", "non-NULL pointer", __FILE__, __LINE__)
+# define DT_CHECK_NOT_NULL(label, p) \
+	dt_check((p) != NULL, 0, (label), "non-NULL pointer", "NULL", __FILE__, __LINE__)
+/* a failure with a printf-like message */
+# define DT_FAILF(...) dt_failf_at(__FILE__, __LINE__, __VA_ARGS__)
+
 /* output capture: everything written to `fd` while running `block` */
 int		dt_capture_begin(int fd);
 void	dt_capture_end(int fd, int token, t_dt_capture *out);
@@ -155,6 +182,7 @@ void	dt_malloc_reset(void);
 int		dt_malloc_calls(void);
 void	dt_leaks_ignore(void);
 size_t	dt_alloc_size(const void *ptr);
+size_t	dt_alloc_live(void);	/* blocks allocated by the tested code, not freed yet */
 
 /* internal: used by dt_main.c */
 void	dt_alloc_start(void);

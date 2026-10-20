@@ -14,7 +14,7 @@ This guide explains how to write a suite that plugs into DeepThought. Anyone can
 - [10. Checklist and good practices](#10-checklist-and-good-practices)
 - [11. Troubleshooting](#11-troubleshooting)
 
-Real-world examples to read alongside this guide: the official [`suites/get_next_line`](../suites/get_next_line) (C, matrix, fixtures), the [examples](../examples/suites) (Python, exec), and [`community/sstyle`](../community/sstyle) (an existing tester wrapped without changing its tests).
+Real-world examples to read alongside this guide: the official [`suites/get_next_line`](../suites/get_next_line) (C, matrix, fixtures), the [examples](../examples/suites) (Python, exec), and [`community/sstyle`](../community/sstyle) (another tester's tests, ported: labelled checks, one test per case).
 
 ---
 
@@ -301,7 +301,9 @@ DT_TEST(ft_substr, start_too_big, "start beyond the end gives an empty string")
 | `DT_EXPECT_NULL(p)` / `DT_EXPECT_NOT_NULL(p)` | | |
 | `DT_EXPECT_ALLOC_SIZE(p, n)` | `p` was allocated with exactly `n` bytes (skipped in sanitizer mode) | |
 | `DT_COMPARE_OUTPUT(ft_call, ref_call)` | both calls write the same bytes on stdout **and** return the same value | output diff + return values |
-| `DT_FAIL("message")` | never: explicit failure | |
+| `DT_FAIL("message")` / `DT_FAILF("fmt", ...)` | never: explicit failure (printf-like message) | |
+
+**Labelled checks** show your own words instead of the C expression. They're ideal for helpers and for porting tests: `DT_CHECK_STR("ft_substr(\"hello\", 1, 3)", got, "ell")`. The family covers `DT_CHECK(label, cond)`, `_BOOL`, `_INT`, `_UINT`, `_SIZE`, `_CHAR`, `_PTR`, `_STR`, `_MEM(label, a, e, n)`, `_NULL(label, p)` and `_NOT_NULL(label, p)`, always as *(label, actual, expected)*.
 
 All `DT_ASSERT_*` variants exist for the `EQ_*` macros. Every check returns 1 if it passed, so you can write `if (!DT_EXPECT_EQ_STR(...)) return ;`.
 
@@ -378,6 +380,7 @@ DT_TEST(ft_split, malloc_fail_middle, "A malloc fails midway: returns NULL and f
 | `dt_malloc_calls()` | allocations made since the last reset |
 | `dt_leaks_ignore()` | don't report leaks for this test (e.g. get_next_line's static buffer when you stop before EOF) |
 | `dt_alloc_size(p)` | size of a tracked allocation (prefer `DT_EXPECT_ALLOC_SIZE`) |
+| `dt_alloc_live()` | number of tracked blocks currently allocated: compare before/after a call to check one step for leaks |
 
 Only allocations made by code in the test binary (the student's code and yours) are tracked. libc's internal allocations (`printf` buffers, `fopen`…) are ignored. **Free everything your test allocates**, including results returned by the student's functions, otherwise the test is reported as leaking. If you need memory that should never be tracked, use `dt_raw_malloc` / `dt_raw_free`.
 
@@ -562,15 +565,14 @@ command = "run.sh"          # relative to the suite folder
 
 ---
 
-## 7b. Wrapping an existing tester
+## 7b. Bringing tests from another tester
 
-Many 42 testers already exist. You can bring one into DeepThought **without modifying its tests**:
+Many 42 testers already exist. Two ways to bring one into DeepThought:
 
-1. `[[fetch]]` its repository, pinned to a commit.
-2. Compile its test files with a small adapter instead of its `main()`. The adapter registers each of its tests with `dt_register()` and turns its report into DeepThought checks (`dt_check`, `dt_check_bytes`, `dt_note`).
-3. Reproduce its build flags (per platform if needed) in the groups.
+- **Port it** (best result). Their cases become `DT_TEST`s and their `check(label, expected, got)` helpers become labelled checks: `DT_CHECK_STR(label, got, expected)`, `DT_CHECK_INT`, `DT_CHECK_BOOL`… Failures then show the original labels, with expected and got. [`community/sstyle`](../community/sstyle) is a complete port of SStyles93's CodeTester (with the author's permission): about 230 tests.
+- **Wrap it** without touching it: `[[fetch]]` its repository (pinned commit), and either compile its tests with a small adapter that registers them with `dt_register()`, or, for testers that are programs, use the `script` runner with a script that prints DTP events.
 
-[`community/sstyle`](../community/sstyle) does exactly this for SStyles93's CodeTester (one ~430-line adapter, none of their files changed). For testers that are programs, the `script` runner is even simpler: a script that runs the tester and prints DTP events.
+Check the license, or ask the author, before publishing someone else's tests.
 
 ## 8. Testing your suite
 
