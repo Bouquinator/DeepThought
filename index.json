@@ -1,0 +1,5 @@
+{
+  "_about": "Community suites shown in the web UI (Suites > Discover). To list yours, open a pull request adding an entry. See docs/writing-suites.md#sharing-your-suite",
+  "version": 1,
+  "suites": []
+}

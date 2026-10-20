@@ -1,0 +1,26 @@
+# __NAME__ — a DeepThought suite for a Python project (python-unit runner).
+# Full reference: docs/writing-suites.md
+
+[suite]
+id = "__ID__"
+name = "__NAME__"
+version = "0.1.0"
+project = "__PROJECT__"
+engine = ">=0.1"
+authors = ["your-login"]
+description = "What this suite checks, in one sentence."
+
+[detect]
+any_files = ["*.py"]
+
+[build]
+checks = []
+
+[defaults]
+timeout = 5.0
+
+[[group]]
+name = "Examples"
+category = "mandatory"
+runner = "python-unit"
+tests = ["tests/test_*.py"]

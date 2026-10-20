@@ -1,0 +1,59 @@
+# DeepThought official suite for Libft.
+# Reference documentation: docs/writing-suites.md
+
+[suite]
+id = "libft"
+name = "Libft"
+version = "1.0.0"
+project = "libft"
+engine = ">=0.1"
+authors = ["DeepThought"]
+description = "Part 1 (libc), Part 2 (additional functions) and bonus (lists). Compared against libc, with malloc-failure and leak checks."
+
+[detect]
+any_files = ["libft.h", "*/libft.h"]
+makefile_name = "libft.a"
+
+[build]
+command = "make -C {project}"
+artifacts = ["libft.a"]
+checks = ["files", "rules", "relink", "norminette", "forbidden"]
+
+[files]
+required = ["Makefile", "**/libft.h"]
+
+[forbidden]
+allowed = ["malloc", "free", "write"]
+
+[defaults]
+timeout = 3.0
+
+[[group]]
+name = "Part 1 — libc functions"
+description = "Re-implementations of libc functions, compared against the real ones."
+category = "mandatory"
+runner = "c-unit"
+split = true
+sources = ["tests/part1/*.c"]
+include = ["{project}", "tests"]
+link = ["{project}/libft.a"]
+
+[[group]]
+name = "Part 2 — additional functions"
+category = "mandatory"
+runner = "c-unit"
+split = true
+sources = ["tests/part2/*.c"]
+include = ["{project}", "tests"]
+link = ["{project}/libft.a"]
+
+[[group]]
+name = "Bonus — linked lists"
+category = "bonus"
+runner = "c-unit"
+split = true
+when = { make_rule = "bonus" }
+before = ["make -C {project} bonus"]
+sources = ["tests/bonus/*.c"]
+include = ["{project}", "tests"]
+link = ["{project}/libft.a"]

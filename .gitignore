@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+*.dSYM/
+# build products inside the test fixtures
+tests/fixtures/**/*.o
+tests/fixtures/**/*.a
+tests/fixtures/**/.bonus
+examples/projects/**/*.o
+examples/projects/mini_echo/mini_echo

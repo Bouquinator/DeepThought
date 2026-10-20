@@ -1,0 +1,13 @@
+[[case]]
+name = "-n removes the newline"
+cmd = ["{project}/mini_echo", "-n", "no newline"]
+[case.expect]
+stdout = "no newline"
+exit = 0
+
+[[case]]
+name = "multi-line output"
+desc = "Arguments containing newlines are printed as they are"
+cmd = ["{project}/mini_echo", "line one\nline two\nline three"]
+[case.expect]
+stdout = "line one\nline two\nline three\n"

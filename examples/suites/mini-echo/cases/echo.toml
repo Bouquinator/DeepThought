@@ -1,0 +1,20 @@
+[[case]]
+name = "one word"
+cmd = ["{project}/mini_echo", "hello"]
+reference = ["/bin/echo", "hello"]
+
+[[case]]
+name = "several words"
+cmd = ["{project}/mini_echo", "hello", "42", "school"]
+reference = ["/bin/echo", "hello", "42", "school"]
+
+[[case]]
+name = "empty argument in the middle"
+desc = "echo a '' b prints 'a  b' (two spaces)"
+cmd = ["{project}/mini_echo", "a", "", "b"]
+reference = ["/bin/echo", "a", "", "b"]
+
+[[case]]
+name = "no argument"
+cmd = ["{project}/mini_echo"]
+reference = ["/bin/echo"]

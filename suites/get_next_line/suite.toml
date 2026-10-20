@@ -1,0 +1,51 @@
+# DeepThought official suite for get_next_line.
+# Every group is compiled once per BUFFER_SIZE value of its matrix.
+
+[suite]
+id = "get_next_line"
+name = "get_next_line"
+version = "1.0.0"
+project = "get_next_line"
+engine = ">=0.1"
+authors = ["DeepThought"]
+description = "Files, stdin, invalid fds, huge and tiny BUFFER_SIZE, leaks after EOF, multiple fds (bonus)."
+
+[detect]
+files = ["get_next_line.c", "get_next_line.h"]
+
+[build]
+checks = ["files", "norminette", "forbidden"]
+
+[files]
+required = ["get_next_line.c", "get_next_line_utils.c", "get_next_line.h"]
+
+[forbidden]
+allowed = ["read", "malloc", "free"]
+sources = ["get_next_line*.c"]
+cflags = ["-D", "BUFFER_SIZE=42"]
+
+[norminette]
+paths = ["."]
+
+[defaults]
+timeout = 5.0
+
+[[group]]
+name = "Mandatory"
+description = "Reads files and stdin line by line, for several BUFFER_SIZE values."
+category = "mandatory"
+runner = "c-unit"
+matrix = { BUFFER_SIZE = [1, 42, 9999, 10000000] }
+cflags = ["-D", "BUFFER_SIZE={matrix.BUFFER_SIZE}"]
+sources = ["{project}/get_next_line.c", "{project}/get_next_line_utils.c", "tests/mandatory/*.c"]
+include = ["{project}", "tests"]
+
+[[group]]
+name = "Bonus — multiple fds"
+category = "bonus"
+runner = "c-unit"
+when = { files = ["get_next_line_bonus.c", "get_next_line_utils_bonus.c"] }
+matrix = { BUFFER_SIZE = [1, 42] }
+cflags = ["-D", "BUFFER_SIZE={matrix.BUFFER_SIZE}", "-D", "GNL_BONUS"]
+sources = ["{project}/get_next_line_bonus.c", "{project}/get_next_line_utils_bonus.c", "tests/bonus/*.c"]
+include = ["{project}", "tests"]

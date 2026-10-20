@@ -1,0 +1,29 @@
+# __NAME__ — a DeepThought suite using the `exec` runner: run a program,
+# check its output and exit code. Works for any language.
+# Full reference: docs/writing-suites.md
+
+[suite]
+id = "__ID__"
+name = "__NAME__"
+version = "0.1.0"
+project = "__PROJECT__"
+engine = ">=0.1"
+authors = ["your-login"]
+description = "What this suite checks, in one sentence."
+
+[detect]
+any_files = ["Makefile"]
+
+[build]
+command = "make -C {project}"
+artifacts = []
+checks = []
+
+[defaults]
+timeout = 5.0
+
+[[group]]
+name = "Basic behaviour"
+category = "mandatory"
+runner = "exec"
+cases = "cases/basic.toml"

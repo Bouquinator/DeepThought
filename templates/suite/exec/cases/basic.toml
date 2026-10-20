@@ -1,0 +1,34 @@
+# One [[case]] = one test. {project} is the isolated copy of the student's project,
+# {suite} this folder. A command is a string (split like a shell) or a list.
+
+[[case]]
+name = "prints its arguments"
+desc = "Replace `echo` with the student's program, e.g. {project}/push_swap"
+cmd = "echo hello 42"
+[case.expect]
+stdout = "hello 42\n"
+exit = 0
+
+[[case]]
+name = "compared with a reference program"
+desc = "Same stdout and exit code as the reference command"
+cmd = ["printf", "%s-%s", "a", "b"]
+reference = ["printf", "%s-%s", "a", "b"]
+compare = ["stdout", "exit"]
+
+[[case]]
+name = "reads stdin"
+cmd = "cat"
+stdin = "line 1\nline 2\n"
+[case.expect]
+stdout_contains = ["line 2"]
+stdout_regex = "^line 1$"
+
+[[case]]
+name = "error handling"
+desc = "Writes Error on stderr and fails"
+cmd = "sh -c 'echo Error >&2; exit 1'"
+shell = true
+[case.expect]
+stderr = "Error\n"
+exit = "nonzero"

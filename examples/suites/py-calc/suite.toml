@@ -1,0 +1,30 @@
+# Example: testing a Python module with the python-unit runner.
+#   ./dt suite add examples/suites/py-calc
+#   ./dt run examples/projects/py_calc
+
+[suite]
+id = "py-calc"
+name = "py_calc (example)"
+version = "1.0.0"
+project = "py_calc"
+engine = ">=0.1"
+authors = ["DeepThought"]
+description = "Example Python suite: values, exceptions, infinite loops and printed output."
+
+[detect]
+files = ["calc.py"]
+
+[build]
+checks = ["files"]
+
+[files]
+required = ["calc.py"]
+
+[defaults]
+timeout = 2.0
+
+[[group]]
+name = "calc module"
+category = "mandatory"
+runner = "python-unit"
+tests = ["tests/test_*.py"]

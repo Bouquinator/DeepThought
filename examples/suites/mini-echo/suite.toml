@@ -1,0 +1,35 @@
+# Example: testing a program with the exec runner, against a reference.
+#   ./dt suite add examples/suites/mini-echo
+#   ./dt run examples/projects/mini_echo
+
+[suite]
+id = "mini-echo"
+name = "mini_echo (example)"
+version = "1.0.0"
+project = "mini_echo"
+engine = ">=0.1"
+authors = ["DeepThought"]
+description = "Example exec suite: compares the program with /bin/echo."
+
+[detect]
+makefile_name = "mini_echo"
+
+[build]
+command = "make -C {project}"
+artifacts = ["mini_echo"]
+checks = ["rules", "relink", "forbidden"]
+
+[forbidden]
+allowed = ["write", "strcmp", "strlen"]
+
+[[group]]
+name = "Compared with echo"
+category = "mandatory"
+runner = "exec"
+cases = "cases/echo.toml"
+
+[[group]]
+name = "Exact output"
+category = "mandatory"
+runner = "exec"
+cases = "cases/exact.toml"
