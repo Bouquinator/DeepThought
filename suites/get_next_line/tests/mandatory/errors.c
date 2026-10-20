@@ -2,7 +2,10 @@
 
 DT_TEST(errors, negative_fd, "fd = -1 returns NULL")
 {
-	char	*l = get_next_line(-1);
+	char	*l;
+
+	dt_input("get_next_line(-1)");
+	l = get_next_line(-1);
 
 	DT_EXPECT_NULL(l);
 	free(l);
@@ -10,7 +13,10 @@ DT_TEST(errors, negative_fd, "fd = -1 returns NULL")
 
 DT_TEST(errors, closed_fd, "A closed fd returns NULL")
 {
-	char	*l = get_next_line(42);
+	char	*l;
+
+	dt_input("get_next_line(42), fd 42 is not open");
+	l = get_next_line(42);
 
 	DT_EXPECT_NULL(l);
 	free(l);
@@ -18,7 +24,10 @@ DT_TEST(errors, closed_fd, "A closed fd returns NULL")
 
 DT_TEST(errors, huge_fd, "fd above OPEN_MAX returns NULL without crashing")
 {
-	char	*l = get_next_line(100000);
+	char	*l;
+
+	dt_input("get_next_line(100000)");
+	l = get_next_line(100000);
 
 	DT_EXPECT_NULL(l);
 	free(l);
@@ -27,7 +36,10 @@ DT_TEST(errors, huge_fd, "fd above OPEN_MAX returns NULL without crashing")
 DT_TEST(errors, read_error, "read() fails (a directory): returns NULL")
 {
 	int		fd = open(".", O_RDONLY);
-	char	*l = get_next_line(fd);
+	char	*l;
+
+	dt_input("an fd opened on a directory: read() fails with EISDIR");
+	l = get_next_line(fd);
 
 	DT_EXPECT_NULL(l);
 	free(l);
@@ -40,6 +52,7 @@ DT_TEST(errors, read_error_midway, "A read error discards what was buffered: the
 	char	*l;
 	int		guard = 0;
 
+	dt_input("read 1 line of fixtures/multi.txt, close the fd, call again (read error), then read another file on the same fd");
 	free(get_next_line(fd));
 	close(fd);
 	/* lines already buffered may still come out; then read() fails -> NULL */
@@ -57,6 +70,7 @@ DT_TEST(errors, malloc_fail, "Every malloc fails: returns NULL without crashing"
 	int		fd = open(dt_fixture("multi.txt"), O_RDONLY);
 	char	*l;
 
+	dt_input("fixtures/multi.txt while every malloc fails");
 	dt_malloc_fail_all();
 	l = get_next_line(fd);
 	dt_malloc_reset();

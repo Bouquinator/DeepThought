@@ -14,6 +14,7 @@
 **   DT_EXPECT_ALLOC_SIZE(ptr, n)    malloc'd exactly n bytes
 **
 ** Tools: dt_malloc_fail_at(n), dt_malloc_fail_all(), dt_leaks_ignore(),
+**        dt_input("fmt", ...)  <- describe the input: shown with every failure
 **        dt_fixture("file"), dt_note("fmt", ...),
 **        dt_skip("reason"), DT_CAPTURE_FD(fd, cap, code)
 */
@@ -32,7 +33,10 @@ static char	*my_strdup(const char *s)
 
 DT_TEST(example, equal_strings, "Compares two strings (replace with a student function)")
 {
-	char	*copy = my_strdup("42 school");
+	char	*copy;
+
+	dt_input("\"42 school\"");
+	copy = my_strdup("42 school");
 
 	DT_ASSERT_NOT_NULL(copy);
 	DT_EXPECT_EQ_STR(copy, "42 school");

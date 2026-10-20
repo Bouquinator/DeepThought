@@ -38,6 +38,7 @@ Every event has `"t"` (type). Test events carry `"id"`, a stable string `group/n
 {"t":"discover","id":"ft_strlen/basic","name":"basic","desc":"Length of a regular string","file":"/abs/tests/ft_strlen.c","line":3}
 {"t":"start","id":"ft_strlen/basic"}
 {"t":"assert","id":"ft_strlen/basic","ok":false,"msg":"ft_strlen(\"\")","expected":"0","actual":"1","file":"/abs/tests/ft_strlen.c","line":9}
+{"t":"input","id":"ft_strlen/basic","value":"s=\"\""}
 {"t":"log","id":"ft_strlen/basic","msg":"any note for the student"}
 {"t":"leak","id":"ft_strlen/basic","bytes":12,"count":1}
 {"t":"end","id":"ft_strlen/basic","status":"fail","ms":2,"exit":1,"signal":"SIGSEGV","reason":"…","output":"…"}
@@ -49,7 +50,8 @@ Every event has `"t"` (type). Test events carry `"id"`, a stable string `group/n
 | `hello` | `protocol` (int), `harness` | first line. A newer protocol than the engine knows produces a warning. |
 | `discover` | `id`, `name`, `desc`, `file`, `line` | `file`/`line` let the UI show the test's source code. |
 | `start` | `id` | the test is running |
-| `assert` | `id`, `ok`, `msg`, `expected`, `actual`, `file`, `line` | send failed checks (`ok:false`); passing ones may be omitted. |
+| `assert` | `id`, `ok`, `msg`, `expected`, `actual`, `file`, `line`, optional `input`, `cmp` | send failed checks (`ok:false`); passing ones may be omitted. `input` describes what was tested; `cmp:"text"` says the values are compared texts (the UI then explains where they differ). |
+| `input` | `id`, `value` | the input under test from now on; shown for a later crash / timeout too |
 | `log` | `id`, `msg` | free text shown with the test |
 | `leak` | `id`, `bytes`, `count` | memory still allocated at the end |
 | `end` | `id`, `status`, `ms`, optional `exit`, `signal`, `reason`, `output` | **required** for every started test |

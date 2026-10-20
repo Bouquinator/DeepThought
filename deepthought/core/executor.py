@@ -588,13 +588,15 @@ class RunManager:
                     ctx.emit("test", gid=gs.gid, test=ts.to_dict())
                 elif t == "assert" and not ev.get("ok", False):
                     if len(ts.asserts) < MAX_ASSERTS:
-                        a = {k: ev.get(k) for k in ("msg", "expected", "actual", "file", "line")}
+                        a = {k: ev.get(k) for k in ("msg", "expected", "actual", "file", "line", "input", "cmp")}
                         body_end = ts.line + ts.source.count("\n")
                         if a["file"] and a["line"] and not (a["file"] == ts.file and ts.line <= a["line"] <= body_end):
                             a["context"] = context_lines(a["file"], int(a["line"]))
                         ts.asserts.append(a)
                 elif t == "log":
                     ts.logs.append(str(ev.get("msg", "")))
+                elif t == "input":
+                    ts.input = str(ev.get("value", ""))
                 elif t == "leak":
                     ts.leaks = {"bytes": ev.get("bytes", 0), "count": ev.get("count", 0)}
                 elif t == "end":

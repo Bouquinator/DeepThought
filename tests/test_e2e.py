@@ -43,6 +43,16 @@ class EndToEnd(unittest.TestCase):
         for tid, status in expected.items():
             self.assertEqual(st.get(tid), status, tid)
 
+    def test_failures_show_their_input(self):
+        run = self.run_project(FIXTURES / "libft_broken", ENGINE)
+        tests = {t["id"]: t for g in run["groups"] for t in g["tests"]}
+        a = tests["ft_strlcpy/truncates"]["asserts"][0]
+        self.assertEqual(a["input"], 'src="hello world", size=6')
+        self.assertEqual((a["expected"], a["actual"]), ("11", "5"))
+        self.assertNotEqual(a.get("cmp"), "text")                     # numbers: no text diff
+        itoa = tests["ft_itoa/limits"]["asserts"][0]
+        self.assertEqual((itoa["input"], itoa["cmp"]), ("-2147483648", "text"))
+
     def test_libft_broken_checks(self):
         run = self.run_project(FIXTURES / "libft_broken", ENGINE)
         stages = {s["id"]: s["status"] for s in run["stages"]}
@@ -164,13 +174,20 @@ class EndToEnd(unittest.TestCase):
         reg = self.m.registry
         reg.add(str(ROOT / "examples" / "suites" / "py-calc"))
         reg.add(str(ROOT / "examples" / "suites" / "mini-echo"))
-        st = statuses(self.run_project(ROOT / "examples" / "projects" / "py_calc"))
+        run = self.run_project(ROOT / "examples" / "projects" / "py_calc")
+        st = statuses(run)
+        big = next(t for g in run["groups"] for t in g["tests"] if t["id"] == "test_calc/big_number")
+        self.assertEqual(big["input"], "101")                          # given() survives a timeout
         self.assertEqual(st["test_calc/add_numbers"], "pass")
         self.assertEqual(st["test_calc/mean_empty"], "fail")
         self.assertEqual(st["test_calc/big_number"], "timeout")
         self.assertEqual(st["test_calc/percent"], "crash")
-        st = statuses(self.run_project(ROOT / "examples" / "projects" / "mini_echo"))
+        run = self.run_project(ROOT / "examples" / "projects" / "mini_echo")
+        st = statuses(run)
         self.assertEqual(st["empty-argument-in-the-middle"], "fail")
+        echo = next(t for g in run["groups"] for t in g["tests"] if t["id"] == "empty-argument-in-the-middle")
+        self.assertIn("<project>/mini_echo a '' b", echo["asserts"][0]["input"])
+        self.assertEqual(echo["asserts"][0]["cmp"], "text")
         self.assertEqual(st["multi-line-output"], "pass")
 
 

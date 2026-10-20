@@ -90,6 +90,11 @@ class ExecRunner(Runner):
         shell = bool(c.get("shell", False))
         argv, use_shell = self._argv(c["cmd"], shell)
         stdin = self._stdin(c)
+        shown = (argv[0] if use_shell else quote_cmd(argv)).replace(str(self.ctx.ws.src), "<project>")
+        if stdin:
+            preview = stdin[:200].decode("utf-8", "replace")
+            shown += f"   with stdin: {preview!r}" + ("…" if len(stdin) > 200 else "")
+        on_event({"t": "input", "id": cid, "value": c.get("input") or shown})
         env = self.env()
         env.update({k: str(self.x(v)) for k, v in c.get("env", {}).items()})
         with self.ctx.slots:
@@ -137,7 +142,9 @@ class ExecRunner(Runner):
             check(chk.ok, f"checker: {expand(c['check'], self.vars)}", "exit 0", f"exit {chk.code}: {chk.text()[:500]}")
 
         for msg, e, a in fails:
-            on_event({"t": "assert", "id": cid, "ok": False, "msg": msg, "expected": e, "actual": a})
+            on_event({"t": "assert", "id": cid, "ok": False, "msg": msg, "expected": e, "actual": a,
+                      "input": c.get("input") or shown,
+                      "cmp": "text" if msg.startswith(("stdout", "stderr")) else ""})
         end = {"t": "end", "id": cid, "ms": res.ms, "exit": res.code,
                "output": _latin(res.stdout[:2048] + res.stderr[:2048])}
         if res.timed_out:

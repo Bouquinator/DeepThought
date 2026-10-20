@@ -2,7 +2,7 @@
 
 Write tests in plain Python files:
 
-    from dtharness import test, expect, expect_eq, expect_raises, capture_stdout
+    from dtharness import test, given, expect, expect_eq, expect_raises, capture_stdout
     import my_module                      # imported from the student's project
 
     @test("add() adds two numbers")
@@ -36,7 +36,7 @@ PROTOCOL = 1
 EXIT_PASS, EXIT_FAIL, EXIT_SKIP = 0, 1, 2
 
 _tests = []
-_state = {"failed": 0, "id": "", "out": None, "json": False}
+_state = {"failed": 0, "id": "", "out": None, "json": False, "input": ""}
 
 
 class _Fatal(Exception):
@@ -84,10 +84,15 @@ def _check(ok, msg, expected, actual, fatal=False):
         return True
     _state["failed"] += 1
     file, line = _caller_outside()
-    _emit({"t": "assert", "id": _state["id"], "ok": False, "msg": msg,
-           "expected": _show(expected), "actual": _show(actual), "file": file, "line": line},
-          human=f"    ✗ {os.path.basename(file)}:{line}  {msg}\n        expected: {_show(expected)!r}\n"
-                f"        actual:   {_show(actual)!r}\n")
+    ev = {"t": "assert", "id": _state["id"], "ok": False, "msg": msg,
+          "expected": _show(expected), "actual": _show(actual), "file": file, "line": line}
+    if _state["input"]:
+        ev["input"] = _state["input"]
+    if isinstance(expected, str) and isinstance(actual, str):
+        ev["cmp"] = "text"
+    _emit(ev, human=f"    ✗ {os.path.basename(file)}:{line}  {msg}\n"
+                    + (f"        input:    {_state['input']}\n" if _state["input"] else "")
+                    + f"        expected: {_show(expected)!r}\n        actual:   {_show(actual)!r}\n")
     if fatal:
         raise _Fatal()
     return False
@@ -167,6 +172,17 @@ def fixture(relpath):
     return os.path.join(os.environ.get("DT_FIXTURES", "fixtures"), relpath)
 
 
+def given(*values, **named):
+    """Describe the input being tested; shown with every failure (and crash) that follows.
+
+    given("empty list")  ·  given([1, 2, 3])  ·  given(n=4, text="abc")
+    """
+    parts = [v if isinstance(v, str) else repr(v) for v in values]
+    parts += [f"{k}={v!r}" for k, v in named.items()]
+    _state["input"] = ", ".join(parts)
+    _emit({"t": "input", "id": _state["id"], "value": _state["input"]})
+
+
 def note(msg):
     _emit({"t": "log", "id": _state["id"], "msg": str(msg)}, human=f"    · {msg}\n")
 
@@ -236,6 +252,7 @@ def _run_one(t, default_timeout):
             os.dup2(tmp.fileno(), 2)
             signal.setitimer(signal.ITIMER_REAL, timeout)
             _state["failed"] = 0
+            _state["input"] = ""
             t["fn"]()
             code = EXIT_FAIL if _state["failed"] else EXIT_PASS
         except _Fatal:

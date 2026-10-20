@@ -335,3 +335,36 @@ pre.source.context { margin-bottom: 8px; max-height: 160px; }
 .pick-row input { accent-color: var(--accent); }
 .link-select { width: auto; padding: 3px 8px; font-size: 12.5px; }
 .form .pick-row { flex-direction: row; align-items: center; gap: 8px; margin: 0; }
+
+/* failure cards */
+.failures h4 { margin-top: 16px; }
+.fcard { border: 1px solid color-mix(in srgb, var(--fail) 40%, var(--border)); border-left: 4px solid var(--fail);
+  background: var(--panel); border-radius: 10px; padding: 10px 14px 12px; margin-bottom: 12px; }
+.fcard-timeout { border-left-color: var(--timeout); border-color: color-mix(in srgb, var(--timeout) 40%, var(--border)); }
+.fcard-leak { border-left-color: var(--leak); border-color: color-mix(in srgb, var(--leak) 40%, var(--border)); }
+.fcard-build_error { border-left-color: var(--build); border-color: color-mix(in srgb, var(--build) 40%, var(--border)); }
+.fcard-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.fnum { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--panel2);
+  font-size: 12px; font-weight: 700; color: var(--dim); flex: none; }
+.fmsg { font-size: 13.5px; font-weight: 600; word-break: break-word; }
+.fgrid { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; align-items: baseline; }
+.flabel { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); font-weight: 600; }
+.flabel.exp { color: var(--pass); }
+.flabel.act { color: var(--fail); }
+.fv { white-space: pre-wrap; word-break: break-all; font-size: 13.5px; }
+code.fv { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; justify-self: start; }
+.fdiff { margin-top: 10px; font-size: 13px; color: var(--leak); }
+.fcard .diff { margin-top: 8px; }
+.linkish { background: none; border: 0; padding: 0; margin-top: 8px; color: var(--accent); cursor: pointer; font: inherit; font-size: 12.5px; }
+.ok-box { margin: 14px 0; padding: 10px 14px; border-radius: 10px; color: var(--pass); border: 1px solid color-mix(in srgb, var(--pass) 40%, var(--border)); background: color-mix(in srgb, var(--pass) 8%, var(--panel)); }
+.fold { border-top: 1px solid var(--border); padding: 8px 0; }
+.fold summary { cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); font-weight: 600; padding: 4px 0; }
+.fold summary:hover { color: var(--text); }
+.fold-body { padding-top: 8px; }
+.fail-row { align-items: flex-start; }
+.fr-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.fr-sub { font-size: 12.5px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fr-sub code { color: var(--text); }
+.frk { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; }
+.frk.exp { color: var(--pass); margin-left: 6px; }
+.frk.act { color: var(--fail); margin-left: 6px; }

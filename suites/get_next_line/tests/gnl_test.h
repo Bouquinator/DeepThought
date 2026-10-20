@@ -93,6 +93,8 @@ static inline void	expect_file(const char *name)
 {
 	int	fd = open(dt_fixture(name), O_RDONLY);
 
+	dt_input("reading the file fixtures/%s with BUFFER_SIZE=%ld", name, (long)BUFFER_SIZE);
+
 	if (fd < 0)
 	{
 		DT_FAIL("fixture missing");

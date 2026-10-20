@@ -68,6 +68,8 @@ int		dt_check_bytes(const void *actual, size_t alen, const void *expected,
 int		dt_check_sign(long long actual, long long expected, int fatal,
 			const char *expr, const char *file, int line);
 void	dt_note(const char *fmt, ...);
+/* describe the input being tested: shown with every failure (and crash) that follows */
+void	dt_input(const char *fmt, ...);
 void	dt_skip(const char *reason);
 void	dt_fail(const char *msg, const char *file, int line);
 

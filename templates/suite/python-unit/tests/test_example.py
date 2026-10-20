@@ -1,7 +1,7 @@
 """Example Python tests. The student's project folder is on sys.path,
 so `import their_module` just works. Each test runs in its own process."""
 
-from dtharness import capture_stdout, expect, expect_eq, expect_raises, test
+from dtharness import capture_stdout, expect, expect_eq, expect_raises, given, test
 
 
 # import ft_module   <- the student's module
@@ -9,6 +9,7 @@ from dtharness import capture_stdout, expect, expect_eq, expect_raises, test
 
 @test("Compares two values (replace with a student function)")
 def addition():
+    given(1, 1)                       # shown with every failure below
     expect_eq(1 + 1, 2)
 
 

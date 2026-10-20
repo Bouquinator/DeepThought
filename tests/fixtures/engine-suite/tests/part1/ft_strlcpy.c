@@ -5,6 +5,7 @@ static void	check(const char *src, size_t size)
 	char	a[32];
 	char	b[32];
 
+	dt_input("src=\"%s\", size=%zu", src, size);
 	memset(a, 'Z', sizeof(a));
 	memset(b, 'Z', sizeof(b));
 	DT_EXPECT_EQ_SIZE(ft_strlcpy(a, src, size), ref_strlcpy(b, src, size));

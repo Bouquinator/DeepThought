@@ -2,6 +2,7 @@
 
 static void	check(const char *h, const char *n, size_t len)
 {
+	dt_input("big=\"%s\", little=\"%s\", len=%zu", h, n, len);
 	DT_EXPECT_EQ_PTR(ft_strnstr(h, n, len), ref_strnstr(h, n, len));
 }
 

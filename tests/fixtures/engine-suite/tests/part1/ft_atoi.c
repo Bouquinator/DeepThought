@@ -2,6 +2,7 @@
 
 static void	check(const char *s)
 {
+	dt_input("\"%s\"", s);
 	DT_EXPECT_EQ_INT(ft_atoi(s), atoi(s));
 }
 

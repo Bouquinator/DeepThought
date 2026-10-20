@@ -4,6 +4,7 @@ static void	from_stdin(const char *name)
 {
 	int	fd = open(dt_fixture(name), O_RDONLY);
 
+	dt_input("reading stdin (fd 0) filled with fixtures/%s, BUFFER_SIZE=%ld", name, (long)BUFFER_SIZE);
 	dup2(fd, 0);
 	close(fd);
 	expect_lines(0, dt_fixture(name));
@@ -26,6 +27,8 @@ DT_TEST(stdin, pipe, "Reads from a pipe written in several chunks")
 
 	if (pipe(p) < 0)
 		dt_skip("pipe() failed");
+	dt_input("a pipe written in 3 chunks: \"first li\" + \"ne\\nsecond\\n\" + \"third\", BUFFER_SIZE=%ld",
+		(long)BUFFER_SIZE);
 	write(p[1], "first li", 8);
 	write(p[1], "ne\nsecond\n", 10);
 	write(p[1], "third", 5);

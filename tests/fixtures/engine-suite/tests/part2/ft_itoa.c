@@ -2,7 +2,10 @@
 
 static void	check(int n, const char *want)
 {
-	char	*r = ft_itoa(n);
+	char	*r;
+
+	dt_input("%d", n);
+	r = ft_itoa(n);
 
 	DT_ASSERT_NOT_NULL(r);
 	DT_EXPECT_EQ_STR(r, want);

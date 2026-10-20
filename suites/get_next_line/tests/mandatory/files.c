@@ -55,6 +55,7 @@ DT_TEST(files, after_eof_again, "Calling again after EOF keeps returning NULL")
 	int		fd = open(dt_fixture("one_line_nl.txt"), O_RDONLY);
 	char	*l;
 
+	dt_input("fixtures/one_line_nl.txt read to the end, then get_next_line called twice more");
 	free(get_next_line(fd));
 	l = get_next_line(fd);
 	DT_EXPECT_NULL(l);

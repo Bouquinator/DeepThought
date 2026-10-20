@@ -3,8 +3,10 @@
   {"t":"hello","protocol":1}
   {"t":"discover","id":"grp/name","name":"name","desc":"...","file":"...","line":3}
   {"t":"start","id":"grp/name"}
-  {"t":"assert","id":"grp/name","ok":false,"msg":"...","expected":"...","actual":"...","file":"...","line":9}
+  {"t":"assert","id":"grp/name","ok":false,"msg":"...","expected":"...","actual":"...","file":"...","line":9,
+   "input":"...", "cmp":"text"}     (optional: the input under test; "text" = the values are compared texts)
   {"t":"log","id":"grp/name","msg":"..."}
+  {"t":"input","id":"grp/name","value":"src=\"abc\", n=2"}     (input under test from now on)
   {"t":"leak","id":"grp/name","bytes":12,"count":1}
   {"t":"end","id":"grp/name","status":"pass|fail|crash|timeout|leak|skip|error","ms":3,
    "signal":"SIGSEGV","reason":"...","output":"..."}
@@ -18,7 +20,7 @@ import json
 
 from deepthought import PROTOCOL
 
-TYPES = {"hello", "discover", "start", "assert", "log", "leak", "end", "done"}
+TYPES = {"hello", "discover", "start", "assert", "log", "leak", "end", "done", "input"}
 STATUSES = {"pass", "fail", "crash", "timeout", "leak", "skip", "error", "build_error"}
 
 

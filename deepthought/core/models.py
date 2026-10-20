@@ -22,6 +22,7 @@ class TestState:
     source: str = ""
     status: str = PENDING
     ms: int = 0
+    input: str = ""        # last input announced by the test (dt_input / given)
     asserts: list = field(default_factory=list)
     logs: list = field(default_factory=list)
     leaks: dict = None

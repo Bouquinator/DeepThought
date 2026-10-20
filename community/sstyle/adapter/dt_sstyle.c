@@ -268,8 +268,15 @@ static void	split_expected(char *text, char **msg, char **exp, char **got)
 }
 
 /* Every "✗" line is a failure, even when expected and got look identical. */
-static void	failure(const char *msg, const char *e, size_t el, const char *g, size_t gl)
+static void	failure(const char *msg, const char *e, size_t el, const char *g, size_t gl,
+	int textual)
 {
+	if (!textual && el && gl)
+	{
+		/* numbers, booleans, chars: values, not texts to diff */
+		dt_check(0, 0, msg, e, g, "", 0);
+		return ;
+	}
 	if (el == gl && (el == 0 || memcmp(e, g, el) == 0))
 		dt_check(0, 0, msg, el ? e : "(see the report below)", el ? g : "", "", 0);
 	else
@@ -333,7 +340,7 @@ static void	report(char *out, const char *suite)
 			gl = unquote(trim(trim(lines[i + 2]) + 4), g, sizeof(g), &rest);
 			sscanf(rest, " return %d", &gr);
 			snprintf(label, sizeof(label), "%s   (return: expected %d, got %d)", t, er, gr);
-			failure(label, e, el, g, gl);
+			failure(label, e, el, g, gl, 1);
 			i += 2;
 			continue ;
 		}
@@ -344,7 +351,7 @@ static void	report(char *out, const char *suite)
 			size_t		el = unquote(exp, e, sizeof(e), NULL);
 			size_t		gl = unquote(got, g, sizeof(g), NULL);
 
-			failure(msg, e, el, g, gl);
+			failure(msg, e, el, g, gl, *exp == '"' || *got == '"');
 		}
 	}
 }

@@ -37,6 +37,7 @@ static int			g_failed = 0;
 static int			g_in_child = 0;
 static int			g_nofork = 0;
 static const char	*g_current = "";
+static char			g_input[1024];
 
 /* ------------------------------------------------------------ output */
 
@@ -205,6 +206,8 @@ static void	child_end(int code)
 	_exit(code);
 }
 
+static int	g_textual;	/* the values being reported are compared texts / bytes */
+
 static void	report_assert(int ok, const char *expr, const char *exp,
 	size_t elen, const char *act, size_t alen, const char *file, int line)
 {
@@ -213,8 +216,9 @@ static void	report_assert(int ok, const char *expr, const char *exp,
 	if (!g_json)
 	{
 		if (!ok)
-			human("    \x1b[31m✗\x1b[0m %s:%d  %s\n        expected: %.*s\n"
+			human("    \x1b[31m✗\x1b[0m %s:%d  %s\n%s%s%s        expected: %.*s\n"
 				"        actual:   %.*s\n", file, line, expr,
+				g_input[0] ? "        input:    " : "", g_input, g_input[0] ? "\n" : "",
 				(int)elen, exp ? exp : "(null)", (int)alen,
 				act ? act : "(null)");
 		return ;
@@ -223,6 +227,10 @@ static void	report_assert(int ok, const char *expr, const char *exp,
 	buf_kv(&b, "id", g_current);
 	buf_str(&b, ok ? ",\"ok\":true" : ",\"ok\":false");
 	buf_kv(&b, "msg", expr);
+	if (g_input[0])
+		buf_kv(&b, "input", g_input);
+	if (g_textual)
+		buf_str(&b, ",\"cmp\":\"text\"");
 	buf_str(&b, ",\"expected\":");
 	buf_json(&b, exp, exp ? elen : 0);
 	buf_str(&b, ",\"actual\":");
@@ -326,10 +334,14 @@ int	dt_check_str(const char *actual, const char *expected, int fatal,
 	else
 		ok = (strcmp(actual, expected) == 0);
 	if (!ok)
+	{
+		g_textual = (actual && expected);
 		report_assert(0, expr,
 			expected ? expected : "(null)", strlen(expected ? expected : "(null)"),
 			actual ? actual : "(null)", strlen(actual ? actual : "(null)"),
 			file, line);
+		g_textual = 0;
+	}
 	return (finish_check(ok, fatal));
 }
 
@@ -340,7 +352,11 @@ int	dt_check_bytes(const void *actual, size_t alen, const void *expected,
 
 	ok = (alen == elen && (alen == 0 || memcmp(actual, expected, alen) == 0));
 	if (!ok)
+	{
+		g_textual = 1;
 		report_assert(0, expr, expected, elen, actual, alen, file, line);
+		g_textual = 0;
+	}
 	return (finish_check(ok, fatal));
 }
 
@@ -376,6 +392,22 @@ void	dt_note(const char *fmt, ...)
 	begin(&b, "log");
 	buf_kv(&b, "id", g_current);
 	buf_kv(&b, "msg", msg);
+	emit(&b);
+}
+
+void	dt_input(const char *fmt, ...)
+{
+	va_list	ap;
+	t_buf	b;
+
+	va_start(ap, fmt);
+	vsnprintf(g_input, sizeof(g_input), fmt, ap);
+	va_end(ap);
+	if (!g_json)
+		return ;
+	begin(&b, "input");
+	buf_kv(&b, "id", g_current);
+	buf_kv(&b, "value", g_input);
 	emit(&b);
 }
 
@@ -515,6 +547,7 @@ static int	child_run(const t_dt_test *t, int outfd)
 		close(outfd);
 	}
 	g_failed = 0;
+	g_input[0] = 0;
 	dt_alloc_start();
 	t->fn();
 	dt_alloc_stop();

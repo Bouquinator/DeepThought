@@ -38,6 +38,38 @@ def decode_output(text):
         return text
 
 
+def _char_name(ch):
+    names = {"\n": "a newline (\\n)", "\t": "a tab (\\t)", " ": "a space", "\0": "a NUL byte (\\0)"}
+    if ch is None:
+        return "nothing"
+    if ch in names:
+        return names[ch]
+    if ord(ch) < 32 or 127 <= ord(ch) <= 255:
+        return f"byte \\x{ord(ch):02x}"
+    return f"'{ch}'"
+
+
+def describe_diff(expected, actual):
+    """Where two texts start to differ, in plain words ('' when not useful)."""
+    if expected is None or actual is None or expected == actual:
+        return ""
+    if expected.lstrip("-").isdigit() and actual.lstrip("-").isdigit():
+        return ""
+    p = 0
+    while p < len(expected) and p < len(actual) and expected[p] == actual[p]:
+        p += 1
+    if "\n" in expected or "\n" in actual:
+        line = expected[:p].count("\n") + 1
+        where = f"line {line}, column {p - expected.rfind(chr(10), 0, p)}"
+    else:
+        where = f"character {p + 1}"
+    if p == len(expected):
+        return f"your output has {len(actual) - p} extra character(s) at the end: {actual[p:p + 24]!r}"
+    if p == len(actual):
+        return f"your output stops early: {len(expected) - p} character(s) missing: {expected[p:p + 24]!r}"
+    return f"first difference at {where}: expected {_char_name(expected[p])}, got {_char_name(actual[p])}"
+
+
 def visible(s, limit=400):
     """Make invisible characters visible: \\n, \\t, \\0, trailing spaces, bytes."""
     if s is None:
@@ -170,11 +202,19 @@ class PlainReporter:
             self._print(c(f"    {t['desc']}", "dim"))
         if t.get("reason"):
             self._print(c(f"    {t['reason'].splitlines()[0]}", "yellow"))
+        if t.get("input") and (not t["asserts"] or t["status"] in ("crash", "timeout")):
+            self._print(f"      {c('while testing:', 'dim')} {t['input']}")
         for a in t["asserts"][:5]:
             where = f" ({os.path.basename(a['file'])}:{a['line']})" if a.get("file") else ""
             self._print(f"    {c('›', 'red')} {a['msg']}{c(where, 'dim')}")
-            self._print(f"      expected: {visible(a.get('expected'))}")
-            self._print(f"      actual:   {visible(a.get('actual'))}")
+            if a.get("input"):
+                self._print(f"      {c('input:   ', 'dim')} {a['input']}")
+            if a.get("expected") or a.get("actual"):
+                self._print(f"      {c('expected:', 'green')} {visible(a.get('expected'))}")
+                self._print(f"      {c('got:     ', 'red')} {visible(a.get('actual'))}")
+                diff = describe_diff(a.get("expected"), a.get("actual")) if a.get("cmp") == "text" else ""
+                if diff:
+                    self._print(c(f"      ⚑ {diff}", "yellow"))
         if len(t["asserts"]) > 5:
             self._print(c(f"      … {len(t['asserts']) - 5} more failed check(s)", "dim"))
         if t.get("leaks"):

@@ -2,8 +2,11 @@
 
 static void	check(const char *s, char c, const char **want)
 {
-	char	**r = ft_split(s, c);
+	char	**r;
 	size_t	i = 0;
+
+	dt_input("ft_split(\"%s\", '%c')", s, c);
+	r = ft_split(s, c);
 
 	DT_ASSERT_NOT_NULL(r);
 	while (want[i])

@@ -309,6 +309,21 @@ Lower-level functions, handy in helpers: `dt_check_bytes(actual, alen, expected,
 
 > **Helpers report the right line.** When a check fails inside a helper (`static void check(...)`), the UI shows the helper's code around the failing line *and* the test that called it. Helpers are the best way to write many similar cases. See `tests/fixtures/engine-suite/tests/part1/ft_strlcpy.c`.
 
+### Show the input: `dt_input`
+
+A failure is only useful if the student sees **what was tested**. When the input is not obvious from the check itself (helpers, loops, files), describe it:
+
+```c
+static void	check(const char *src, size_t size)
+{
+	dt_input("src=\"%s\", size=%zu", src, size);   // printf-like
+	...
+	DT_EXPECT_EQ_SIZE(ft_strlcpy(a, src, size), ref_strlcpy(b, src, size));
+}
+```
+
+Every failure that follows shows *Input · Expected · Got*. A crash or timeout shows "while testing: …", so the student knows which input broke their code. Call it again whenever the input changes (once per loop iteration, for example).
+
 ### Comparing with the real function
 
 The most convincing test compares the student's function with libc on the same input:
@@ -474,6 +489,7 @@ check = "{suite}/check_sorted.sh 3 2 5 1 4"     # receives the program's stdout 
 | `stdin` / `stdin_file` | input text / file (relative to the suite) |
 | `timeout` | seconds |
 | `env` | extra environment variables |
+| `input` | how to describe the input in failures (default: the command line and stdin, automatically) |
 | `expect.stdout` / `expect.stderr` | exact match |
 | `expect.stdout_contains` / `stderr_contains` | string or list of strings that must appear |
 | `expect.stdout_regex` / `stderr_regex` | Python regex (multiline) |
@@ -514,6 +530,7 @@ def shout():
 | function | meaning |
 |---|---|
 | `@test("description")` | registers a test (id `file_stem/function_name`); `@test(timeout=10)` changes the timeout |
+| `given(*values, **named)` | describes the input under test, shown with every failure / crash that follows: `given([1, 2])`, `given(n=4)` |
 | `expect(cond, msg)` / `require(cond, msg)` | `require*` stops the test |
 | `expect_eq(actual, expected, msg=None)` / `require_eq` | equality |
 | `expect_ne`, `expect_close(a, b, tol)`, `expect_type(v, T)` | |

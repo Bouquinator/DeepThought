@@ -4,6 +4,7 @@ static void	check(int n, const char *want)
 {
 	t_dt_capture	cap;
 
+	dt_input("ft_putnbr_fd(%d, 1)", n);
 	DT_CAPTURE_FD(1, cap, ft_putnbr_fd(n, 1));
 	dt_check_bytes(cap.data, cap.len, want, strlen(want), 0, "output", __FILE__, __LINE__);
 	dt_capture_free(&cap);

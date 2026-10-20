@@ -108,6 +108,91 @@ function basename(p) {
 }
 
 // ------------------------------------------------------------------ panels
+// ------------------------------------------------------------------ plain-language difference
+function charName(ch) {
+  if (ch === undefined) return 'nothing';
+  const names = { '\n': 'a newline (\\n)', '\t': 'a tab (\\t)', ' ': 'a space', '\0': 'a NUL byte (\\0)' };
+  if (names[ch]) return names[ch];
+  const code = ch.charCodeAt(0);
+  if (code < 32 || (code >= 127 && code <= 255)) return `byte \\x${code.toString(16).padStart(2, '0')}`;
+  return `'${ch}'`;
+}
+
+function shortText(t, n = 24) {
+  const shown = JSON.stringify(t.slice(0, n)).slice(1, -1);
+  return `"${shown}${t.length > n ? '…' : ''}"`;
+}
+
+export function describeDiff(expected, actual) {
+  if (expected == null || actual == null) return '';
+  if (expected === actual) return '';
+  if (/^-?\d+$/.test(expected) && /^-?\d+$/.test(actual)) return '';
+  const p = commonPrefix(expected, actual);
+  const before = expected.slice(0, p);
+  const line = before.split('\n').length;
+  const col = p - before.lastIndexOf('\n');
+  const where = expected.includes('\n') || actual.includes('\n') ? `line ${line}, column ${col}` : `character ${p + 1}`;
+  if (p === expected.length) return `your output has ${actual.length - p} extra character(s) at the end: ${shortText(actual.slice(p))}`;
+  if (p === actual.length) return `your output stops early: ${expected.length - p} character(s) missing at the end: ${shortText(expected.slice(p))}`;
+  return `first difference at ${where}: expected ${charName(expected[p])}, got ${charName(actual[p])}`;
+}
+
+function Value({ text, other, kind }) {
+  if (text != null && text.includes('\n') && text.indexOf('\n') < text.length - 1) return null;
+  return html`<code class=${'fv fv-' + kind}><${Marked} text=${text} other=${other} kind=${kind} /></code>`;
+}
+
+function Loc({ file, line }) {
+  if (!file) return null;
+  return html`<a class="loc" href="#" title="open in your editor" onClick=${(e) => { e.preventDefault(); openInEditor(file, line); }}>${basename(file)}:${line} ↗</a>`;
+}
+
+// One failure: what was checked, with which input, what was expected, what came out.
+function FailureCard({ a, test, index }) {
+  const multi = [a.expected, a.actual].some((t) => t != null && t.includes('\n') && t.indexOf('\n') < t.length - 1);
+  const diff = a.cmp === 'text' ? describeDiff(a.expected, a.actual) : '';
+  const input = a.input || '';
+  const [code, setCode] = useState(false);
+  const blank = (a.expected === '' || a.expected == null) && (a.actual === '' || a.actual == null);
+  return html`<div class="fcard">
+    <div class="fcard-head">
+      <span class="fnum">${index + 1}</span>
+      <code class="fmsg">${a.msg}</code>
+      <span class="grow"></span>
+      <${Loc} file=${a.file} line=${a.line} />
+    </div>
+    <div class="fgrid">
+      ${input && html`<span class="flabel">Input</span><code class="fv">${input}</code>`}
+      ${!blank && !multi && html`
+        <span class="flabel exp">Expected</span><${Value} text=${a.expected} other=${a.actual} kind="exp" />
+        <span class="flabel act">Got</span><${Value} text=${a.actual} other=${a.expected} kind="act" />`}
+    </div>
+    ${!blank && multi && html`<${Diff} expected=${a.expected} actual=${a.actual} />`}
+    ${diff && html`<div class="fdiff">⚑ ${diff}</div>`}
+    ${a.context && html`<button class="linkish" onClick=${() => setCode(!code)}>${code ? '▾ hide' : '▸ show'} the code of this check</button>
+      ${code && html`<pre class="source context">${a.context.code.split('\n').map((l, i) => html`<div class=${'src-line' + (a.context.start + i === a.line ? ' hit' : '')}><span class="src-ln">${a.context.start + i}</span>${l || ' '}</div>`)}</pre>`}`}
+  </div>`;
+}
+
+// A failure without a failed check: crash, timeout, leak, build error.
+function ProblemCard({ test }) {
+  const label = { crash: test.signal ? `Crashed (${test.signal})` : 'Crashed', timeout: 'Did not finish (timeout)',
+    leak: 'Memory leak', build_error: 'Did not compile', error: 'Could not run' }[test.status] || 'Failed';
+  return html`<div class=${'fcard fcard-' + test.status}>
+    <div class="fcard-head"><span class="fnum">!</span><strong>${label}</strong></div>
+    <div class="fgrid">
+      ${test.input && html`<span class="flabel">While testing</span><code class="fv">${test.input}</code>`}
+      ${test.reason && html`<span class="flabel">Why</span><span class="fv pre">${test.reason.split('\n')[0]}</span>`}
+      ${test.leaks && html`<span class="flabel">Leaked</span><span class="fv"><strong>${test.leaks.bytes}</strong> byte(s) in <strong>${test.leaks.count}</strong> allocation(s) still allocated at the end of the test</span>`}
+    </div>
+    ${EXPLAIN[test.status] && html`<div class="hint">💡 ${EXPLAIN[test.status]}</div>`}
+  </div>`;
+}
+
+function Fold({ title, open, children }) {
+  return html`<details class="fold" open=${open}><summary>${title}</summary><div class="fold-body">${children}</div></details>`;
+}
+
 export function TestDetail({ run, group, test }) {
   const failed = FAILED.has(test.status);
   const rerunOne = async () => {
@@ -116,59 +201,43 @@ export function TestDetail({ run, group, test }) {
       toast(`Re-running ${test.id}…`, 'info', 1500);
     } catch (e) { toast(e.message, 'error'); }
   };
+  const [showAll, setShowAll] = useState(false);
   const assertLines = test.asserts.filter((a) => a.file === test.file).map((a) => a.line);
-  const explain = EXPLAIN[test.status];
+  const shown = showAll ? test.asserts : test.asserts.slice(0, 5);
+  const problemOnly = failed && (!test.asserts.length || ['crash', 'timeout', 'leak'].includes(test.status));
   return html`<div class="detail">
     <div class="detail-head">
       <${StatusPill} status=${test.status}>${test.status === 'crash' && test.signal ? test.signal : null}<//>
+      ${group.category === 'extra' && html`<span class="pill" title="informational group: not graded">informational</span>`}
       ${test.regression && html`<span class="pill pill-regression">regression</span>`}
       ${test.fixed && html`<span class="pill pill-pass">fixed</span>`}
       ${test.carried && html`<span class="pill pill-skip" title="result carried over from the previous run">previous run</span>`}
       <span class="grow"></span>
+      ${test.repro && html`<button class="btn btn-sm" onClick=${rerunOne}>↻ Re-run</button>`}
       ${test.ms ? html`<span class="dim small">${test.ms} ms</span>` : ''}
     </div>
     <h2 class="test-title">${test.id}</h2>
-    <div class="dim">${group.name}</div>
     ${test.desc && html`<p class="desc">${test.desc}</p>`}
 
-    ${test.reason && html`<div class=${'reason reason-' + test.status}><strong>${STATUS[test.status]?.label || test.status}:</strong> <span class="pre">${test.reason}</span></div>`}
-    ${explain && failed && html`<div class="hint">💡 ${explain}</div>`}
-
-    ${test.asserts.length > 0 && html`<section>
-      <h4>Failed checks <span class="count">${test.asserts.length}</span></h4>
-      ${test.asserts.map((a) => html`<div class="assert">
-        <div class="assert-head">
-          <code>${a.msg}</code>
-          ${a.file && html`<a class="loc" href="#" onClick=${(e) => { e.preventDefault(); openInEditor(a.file, a.line); }}>${basename(a.file)}:${a.line}</a>`}
-        </div>
-        ${a.context && html`<pre class="source context">${a.context.code.split('\n').map((l, i) => html`<div class=${'src-line' + (a.context.start + i === a.line ? ' hit' : '')}><span class="src-ln">${a.context.start + i}</span>${l || ' '}</div>`)}</pre>`}
-        <${Diff} expected=${a.expected} actual=${a.actual} />
-      </div>`)}
+    ${problemOnly && html`<${ProblemCard} test=${test} />`}
+    ${test.asserts.length > 0 && html`<section class="failures">
+      <h4>${test.asserts.length === 1 ? 'What went wrong' : `What went wrong: ${test.asserts.length} failed checks`}</h4>
+      ${shown.map((a, i) => html`<${FailureCard} key=${i} a=${a} test=${test} index=${i} />`)}
+      ${test.asserts.length > shown.length && html`<button class="btn btn-sm" onClick=${() => setShowAll(true)}>Show ${test.asserts.length - shown.length} more</button>`}
     </section>`}
+    ${!failed && test.status === 'pass' && html`<div class="ok-box">✓ Every check of this test passed.</div>`}
 
-    ${test.leaks && html`<section><h4>Memory</h4><div class="reason reason-leak">
-      Leaked <strong>${test.leaks.bytes}</strong> byte(s) in <strong>${test.leaks.count}</strong> allocation(s)
-      that were still allocated when the test finished.
-    </div></section>`}
-
-    ${test.logs.length > 0 && html`<section><h4>Notes</h4>${test.logs.map((l) => html`<div class="note">· ${l}</div>`)}</section>`}
-
-    ${test.output && html`<section><h4>Output <span class="dim small">(stdout/stderr of the test)</span></h4>
-      <pre class="output"><${Visible} text=${decodeUtf8(test.output)} /></pre></section>`}
-
-    <section>
-      <h4>Test code ${test.file && html`<a class="loc" href="#" onClick=${(e) => { e.preventDefault(); openInEditor(test.file, test.line); }}>${basename(test.file)}:${test.line}</a>`}</h4>
+    ${test.logs.length > 0 && html`<${Fold} title=${`Notes (${test.logs.length})`} open=${!test.asserts.length}>${test.logs.map((l) => html`<div class="note">· ${l}</div>`)}<//>`}
+    <${Fold} title=${html`Test code ${test.file && html`<${Loc} file=${test.file} line=${test.line} />`}`} open=${!failed || !test.asserts.length}>
       <${Source} test=${test} lines=${assertLines} />
-    </section>
-
-    ${test.repro && html`<section>
-      <h4>Reproduce in your terminal</h4>
+    <//>
+    ${test.output && html`<${Fold} title="Output of the test (stdout / stderr)" open=${failed && !test.asserts.length}>
+      <pre class="output"><${Visible} text=${decodeUtf8(test.output)} /></pre>
+    <//>`}
+    ${test.repro && html`<${Fold} title="Reproduce it in your terminal">
       <pre class="cmd">${test.repro}</pre>
-      <div class="row gap">
-        <${CopyButton} text=${test.repro} label="Copy command" />
-        <button class="btn btn-sm" onClick=${rerunOne}>↻ Re-run this test</button>
-      </div>
-    </section>`}
+      <${CopyButton} text=${test.repro} label="Copy command" />
+    <//>`}
   </div>`;
 }
 
@@ -211,6 +280,33 @@ export function StageDetail({ stage, project }) {
   </div>`;
 }
 
+function short(text, n = 40) {
+  if (text == null) return html`<span class="vis-null">NULL</span>`;
+  const t = text.length > n ? text.slice(0, n) : text;
+  return html`<${Visible} text=${t} />${text.length > n ? '…' : ''}`;
+}
+
+// One line per failing test: what, with which input, expected vs got.
+function FailRow({ g, t, onSelect }) {
+  const a = t.asserts[0];
+  const input = (a && a.input) || t.input;
+  const blank = !a || ((a.expected === '' || a.expected == null) && (a.actual === '' || a.actual == null));
+  return html`<div class="fail-row" onClick=${() => onSelect({ type: 'test', gid: g.gid, id: t.id })}>
+    <span class=${'st st-' + t.status}>${STATUS[t.status].icon}</span>
+    <div class="fr-main">
+      <div class="row gap"><code>${t.id}</code>
+        ${t.asserts.length > 1 && html`<span class="tag">${t.asserts.length} checks</span>`}
+        ${t.regression && html`<span class="pill pill-regression">regression</span>`}</div>
+      <div class="fr-sub">
+        ${input && html`<span class="frk">input</span> <code>${input.length > 60 ? input.slice(0, 60) + '…' : input}</code> `}
+        ${a && !blank
+          ? html`<span class="frk exp">expected</span> <code>${short(a.expected)}</code> <span class="frk act">got</span> <code>${short(a.actual)}</code>`
+          : html`<span class="dim">${a ? a.msg : (t.reason ? t.reason.split('\n')[0] : t.desc)}</span>`}
+      </div>
+    </div>
+  </div>`;
+}
+
 export function Summary({ run, onSelect }) {
   const score = run.score;
   const failing = [];
@@ -243,10 +339,7 @@ export function Summary({ run, onSelect }) {
     ${builds.length > 0 && html`<section><h4>Groups that did not build</h4>${builds.map((g) => html`
       <div class="fail-row" onClick=${() => onSelect({ type: 'group', gid: g.gid })}><span class="st st-build_error">⚒</span> ${g.name} <span class="dim small">${g.message}</span></div>`)}</section>`}
     ${failing.length > 0 && html`<section><h4>Failing tests <span class="count">${failing.length}</span></h4>
-      ${failing.map(([g, t]) => html`<div class="fail-row" onClick=${() => onSelect({ type: 'test', gid: g.gid, id: t.id })}>
-        <span class=${'st st-' + t.status}>${STATUS[t.status].icon}</span> <code>${t.id}</code>
-        <span class="dim small ellipsis">${t.reason ? t.reason.split('\n')[0] : t.desc}</span>
-        ${t.regression && html`<span class="pill pill-regression">regression</span>`}</div>`)}</section>`}
+      ${failing.map(([g, t]) => html`<${FailRow} g=${g} t=${t} onSelect=${onSelect} />`)}</section>`}
     ${info.length > 0 && html`<section><h4>Informational differences <span class="count">${info.length}</span></h4>
       <p class="small dim">Groups marked “info” are not graded: they show where your project differs from a reference on behaviour the subject does not require.</p>
       ${info.map(([g, t]) => html`<div class="fail-row" onClick=${() => onSelect({ type: 'test', gid: g.gid, id: t.id })}>

@@ -17,6 +17,7 @@ DT_TEST(bonus, interleaved, "Alternating between three fds keeps each position")
 	int	b = open(dt_fixture("only_nl.txt"), O_RDONLY);
 	int	c = open(dt_fixture("one_line_nl.txt"), O_RDONLY);
 
+	dt_input("3 fds read in turn: a=multi.txt, b=only_nl.txt, c=one_line_nl.txt");
 	expect(a, "Hello world\n");
 	expect(b, "\n");
 	expect(c, "This file has exactly one line.\n");
@@ -45,6 +46,7 @@ DT_TEST(bonus, invalid_between, "An invalid fd in between does not disturb the o
 {
 	int	a = open(dt_fixture("multi.txt"), O_RDONLY);
 
+	dt_input("multi.txt on fd a, with get_next_line(-1) and get_next_line(4242) in between");
 	expect(a, "Hello world\n");
 	expect(-1, NULL);
 	expect(4242, NULL);

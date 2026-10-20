@@ -1,4 +1,4 @@
-from dtharness import expect_eq, expect_output, expect_raises, test
+from dtharness import expect_eq, expect_output, expect_raises, given, test
 
 import calc  # the student's module (their project folder is on sys.path)
 
@@ -16,17 +16,20 @@ def mean_basic():
 
 @test("mean() of an empty list raises ValueError")
 def mean_empty():
+    given([])
     expect_raises(ValueError, calc.mean, [])
 
 
 @test("is_prime() on small numbers")
 def primes():
     for n, want in [(2, True), (3, True), (9, False), (13, True), (1, False)]:
+        given(n=n)
         expect_eq(calc.is_prime(n), want, f"is_prime({n})")
 
 
 @test("is_prime() terminates on bigger numbers")
 def big_number():
+    given(101)
     expect_eq(calc.is_prime(101), True)
 
 
