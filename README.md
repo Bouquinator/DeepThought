@@ -94,7 +94,7 @@ In the web UI: add the folder (optionally with a type), then use **☰ Suites** 
 | `./dt project list \| add PATH [TYPE] \| kind PATH TYPE\|auto \| link PATH SUITE… \| unlink PATH SUITE… \| auto PATH` | your projects: type and linked suites |
 | `./dt history [path]` | past runs and grades |
 | `./dt doctor` | check your environment (compiler, norminette, nm, git, cache dir) |
-| `./dt man [topic]` | the reference manual in your terminal: `./dt man DT_CHECK_STR`, `./dt man "[[group]]"`, `./dt man -k leak` |
+| `./dt man [topic]` | the manual: `./dt man` opens it in your browser (search, cross-links, every doc); `./dt man DT_CHECK_STR` prints one entry in the terminal |
 
 ## Write your own tests
 
@@ -104,7 +104,7 @@ In the web UI: add the folder (optionally with a type), then use **☰ Suites** 
 
 Then read **[docs/writing-suites.md](docs/writing-suites.md)**. It covers everything from a five-minute tutorial to the full reference (C harness, exec cases, Python, the protocol for other languages), how to test your suite, and how to share it.
 
-Every macro, function, key and protocol event has its own page in **[docs/reference.md](docs/reference.md)**, also available offline with `./dt man NAME`.
+Every macro, function, key and protocol event has its own page in **[docs/reference.md](docs/reference.md)**, also available offline: `./dt man` opens it in your browser, `./dt man NAME` prints one entry in the terminal.
 
 Example of a C test:
 

@@ -2,13 +2,15 @@
 
 Every command, setting, file, key, macro, function and protocol element of DeepThought, one entry each, like a `man` page. For explanations and tutorials, read [writing-suites.md](writing-suites.md) (how to write tests), [protocol.md](protocol.md) (the DTP in depth) and [architecture.md](architecture.md) (how the engine works).
 
-From the terminal, every `###` entry of this page is a man page:
+Read it in your browser, with search and cross-links, or one entry at a time in the terminal:
 
 ```sh
-./dt man                       # list every entry, by section
-./dt man DT_CHECK_STR          # one entry (case-insensitive)
+./dt man                       # open the web manual
+./dt man -w DT_CHECK_STR       # open the web manual on one entry
+./dt man DT_CHECK_STR          # one entry in the terminal (case-insensitive)
 ./dt man malloc                # every entry whose name contains "malloc"
 ./dt man -k leak               # every entry whose text mentions "leak"
+./dt man --list                # every entry, by section
 ```
 
 **Sections**
@@ -281,10 +283,21 @@ The last N (default 20) runs of a project: id, date, status, grade and regressio
 ### dt man
 
 ```
-./dt man [-k] [TOPIC]
+./dt man [TOPIC] [-w] [-k] [--list] [--no-open]
 ```
 
-This manual in the terminal. Without TOPIC, lists every entry by section. With TOPIC, prints the entry with that name (case-insensitive), or the list of entries whose name contains it. `-k` searches the text of the entries instead of their names. The pages are read from `docs/reference.md`, so they update with the tester.
+This manual. Without TOPIC, opens the **web manual** in your browser: the whole reference with search (`/`), cross-links between entries, and the other docs (protocol, writing suites, architecture). It's a single HTML file, generated in the cache folder (`manual/index.html`) and opened directly, so it needs no server and works offline; the terminal is free right away.
+
+With TOPIC, prints that entry in the terminal (case-insensitive), or the list of entries whose name contains it.
+
+| option | |
+|---|---|
+| `-w`, `--web` | open TOPIC in the web manual instead of the terminal |
+| `-k` | search the text of the entries, not only their names (terminal) |
+| `-l`, `--list` | list every entry by section (terminal) |
+| `--no-open` | build the web manual and print its path without opening a browser (over SSH) |
+
+Both read `docs/reference.md`, so they update with the tester.
 
 ---
 

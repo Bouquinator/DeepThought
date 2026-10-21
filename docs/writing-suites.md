@@ -2,7 +2,7 @@
 
 This guide explains how to write a suite that plugs into DeepThought. Anyone can write one: for your own project, for a project that has no tester yet, or to share with your cohort.
 
-Looking for the exact definition of one macro, key or event? Each has its own entry in the [reference manual](reference.md), also in your terminal: `./dt man DT_EXPECT_EQ_STR`, `./dt man when`, `./dt man -k malloc`.
+Looking for the exact definition of one macro, key or event? Each has its own entry in the [reference manual](reference.md). Run `./dt man` to open it in your browser with search, or `./dt man DT_EXPECT_EQ_STR` to read one entry in the terminal.
 
 - [1. Five-minute tutorial](#1-five-minute-tutorial)
 - [2. How a suite is used](#2-how-a-suite-is-used)

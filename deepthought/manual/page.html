@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepThought Manual</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%2300babc'/><text x='32' y='44' font-size='32' font-family='monospace' font-weight='bold' text-anchor='middle' fill='%23000'>42</text></svg>">
+<style>
+/* DeepThought manual — same palette as the main interface, dark first. */
+:root {
+  --bg: #0b0d10; --bg2: #111418; --panel: #15191e; --panel2: #1b2027; --border: #262c34;
+  --text: #e7ebef; --dim: #8a94a0; --accent: #00babc; --accent-ink: #001e1f;
+  --accent-soft: rgba(0, 186, 188, .13); --mark: rgba(227, 179, 65, .32);
+  --t-com: #6e7c8a; --t-str: #a5d6a7; --t-kw: #ff7b72; --t-num: #79c0ff; --t-mac: #00d2d4;
+  --t-fn: #d2a8ff; --t-key: #79c0ff; --t-sec: #e3b341;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f6f7f9; --bg2: #eef0f3; --panel: #ffffff; --panel2: #f4f6f8; --border: #dde1e6;
+    --text: #15191e; --dim: #5f6b78; --accent: #00898b; --accent-ink: #ffffff;
+    --accent-soft: rgba(0, 153, 155, .1); --mark: rgba(212, 167, 44, .3);
+    --t-com: #6e7781; --t-str: #0a7a36; --t-kw: #cf222e; --t-num: #0550ae; --t-mac: #00797b;
+    --t-fn: #8250df; --t-key: #0550ae; --t-sec: #9a6700;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f6f7f9; --bg2: #eef0f3; --panel: #ffffff; --panel2: #f4f6f8; --border: #dde1e6;
+  --text: #15191e; --dim: #5f6b78; --accent: #00898b; --accent-ink: #ffffff;
+  --accent-soft: rgba(0, 153, 155, .1); --mark: rgba(212, 167, 44, .3);
+  --t-com: #6e7781; --t-str: #0a7a36; --t-kw: #cf222e; --t-num: #0550ae; --t-mac: #00797b;
+  --t-fn: #8250df; --t-key: #0550ae; --t-sec: #9a6700;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { scroll-padding-top: 76px; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 ui-sans-serif, -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre { font-family: var(--mono); font-size: 13px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- top bar */
+header {
+  position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 18px;
+  height: 60px; padding: 0 20px; background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 10px; color: var(--text); font-weight: 700; white-space: nowrap; }
+.brand:hover { text-decoration: none; }
+.logo {
+  width: 30px; height: 30px; border-radius: 8px; background: var(--accent); color: #000;
+  display: grid; place-items: center; font: 700 15px var(--mono);
+}
+.brand small { color: var(--dim); font-weight: 500; font-family: var(--mono); font-size: 12px; }
+nav.tabs { display: flex; gap: 2px; }
+nav.tabs a {
+  padding: 6px 12px; border-radius: 8px; color: var(--dim); font-size: 14px; font-weight: 550; white-space: nowrap;
+}
+nav.tabs a:hover { color: var(--text); background: var(--panel); text-decoration: none; }
+nav.tabs a.on { color: var(--text); background: var(--panel2); }
+.search { flex: 1; max-width: 420px; margin-left: auto; position: relative; }
+.search input {
+  width: 100%; height: 36px; padding: 0 64px 0 34px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--text); font: 14px inherit; font-family: inherit;
+}
+.search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.search svg { position: absolute; left: 11px; top: 11px; color: var(--dim); }
+.search kbd { position: absolute; right: 9px; top: 8px; }
+kbd {
+  font: 11px var(--mono); padding: 1px 6px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--panel2); color: var(--dim);
+}
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel);
+  color: var(--dim); display: grid; place-items: center; cursor: pointer; flex: none;
+}
+.icon-btn:hover { color: var(--text); }
+#menu { display: none; }
+
+/* ---------- layout */
+.layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); max-width: 1320px; margin: 0 auto; }
+aside {
+  position: sticky; top: 60px; height: calc(100vh - 60px); overflow-y: auto; padding: 20px 14px 40px 20px;
+  border-right: 1px solid var(--border); font-size: 13.5px;
+}
+aside .group { margin-bottom: 14px; }
+aside .group > button {
+  all: unset; display: flex; align-items: center; gap: 6px; width: 100%; cursor: pointer;
+  color: var(--text); font-weight: 650; font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
+  padding: 4px 6px; border-radius: 6px; box-sizing: border-box;
+}
+aside .group > button:hover { background: var(--panel); }
+aside .group > button .n { margin-left: auto; color: var(--dim); font-weight: 500; font-family: var(--mono); }
+aside .group > button .chev { transition: transform .15s; color: var(--dim); }
+aside .group.closed > button .chev { transform: rotate(-90deg); }
+aside .group.closed ul { display: none; }
+aside ul { list-style: none; margin: 4px 0 0; padding: 0 0 0 8px; border-left: 1px solid var(--border); margin-left: 12px; }
+aside li a {
+  display: block; padding: 2px 8px; border-radius: 6px; color: var(--dim);
+  font-family: var(--mono); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+aside li a:hover { color: var(--text); background: var(--panel); text-decoration: none; }
+aside li a.on { color: var(--accent); background: var(--accent-soft); }
+aside li.toc3 a { padding-left: 20px; }
+aside .toc a { font-family: inherit; font-size: 13.5px; white-space: normal; }
+
+main { padding: 32px 48px 120px; min-width: 0; }
+.content { max-width: 880px; }
+
+/* ---------- reference */
+.hero h1 { font-size: 32px; letter-spacing: -.02em; margin: 0 0 6px; }
+.hero p.lead { color: var(--dim); margin: 0 0 18px; font-size: 16px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin: 22px 0 8px; }
+.cards a {
+  display: block; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel);
+  color: var(--text);
+}
+.cards a:hover { border-color: var(--accent); text-decoration: none; }
+.cards b { display: block; font-size: 14.5px; }
+.cards span { color: var(--dim); font-size: 12.5px; font-family: var(--mono); }
+section.sec > h2 {
+  font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim);
+  margin: 56px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+section.sec > h2 .num { color: var(--accent); margin-right: 8px; font-family: var(--mono); }
+article.entry {
+  border: 1px solid var(--border); border-radius: 14px; background: var(--panel);
+  padding: 18px 22px 8px; margin: 0 0 14px;
+}
+article.entry.flash { animation: flash 1.4s ease-out; }
+@keyframes flash { 0% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 3px transparent; } }
+.entry-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.entry-head h3 { margin: 0; font: 700 17px/1.35 var(--mono); word-break: break-word; }
+.entry-head h3 a { color: var(--text); }
+.entry-head h3 .sep { color: var(--dim); font-weight: 400; margin: 0 6px; }
+.entry-head .tag { font-size: 11.5px; color: var(--dim); border: 1px solid var(--border); border-radius: 999px; padding: 0 8px; }
+.entry-head .tools { margin-left: auto; display: flex; gap: 6px; }
+.chip {
+  all: unset; cursor: pointer; font: 11.5px var(--mono); color: var(--dim); padding: 2px 8px;
+  border-radius: 6px; border: 1px solid var(--border); background: var(--panel2); white-space: nowrap;
+}
+.chip:hover { color: var(--text); border-color: var(--accent); }
+.chip.done { color: var(--accent); border-color: var(--accent); }
+.empty { color: var(--dim); padding: 40px 0; text-align: center; }
+.results-head { color: var(--dim); font-size: 13px; margin: 0 0 14px; }
+.results-head b { color: var(--text); }
+mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1px; }
+.doc-hits { margin: 0 0 22px; padding: 12px 16px; border: 1px dashed var(--border); border-radius: 12px; font-size: 13.5px; }
+.doc-hits div { margin: 2px 0; }
+.doc-hits .where { color: var(--dim); font-size: 12px; margin-left: 6px; }
+
+/* ---------- prose */
+.prose h1 { font-size: 30px; letter-spacing: -.02em; margin: 0 0 14px; line-height: 1.2; }
+.prose h2 { font-size: 22px; margin: 44px 0 10px; padding-top: 8px; letter-spacing: -.01em; }
+.prose h3 { font-size: 17px; margin: 28px 0 8px; }
+.prose h4 { font-size: 15px; margin: 22px 0 6px; }
+.prose h2 code, .prose h3 code { font-size: .9em; }
+.prose p, .prose li { color: color-mix(in srgb, var(--text) 92%, var(--dim)); }
+.prose p { margin: 10px 0; }
+.prose ul, .prose ol { padding-left: 22px; margin: 8px 0; }
+.prose li { margin: 3px 0; }
+.prose li.task { list-style: none; margin-left: -20px; }
+.prose li.task .box { color: var(--accent); }
+.prose hr { border: 0; border-top: 1px solid var(--border); margin: 32px 0; }
+.prose :not(pre) > code, .prose a.xref > code {
+  background: var(--panel2); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; font-size: 12.5px;
+  overflow-wrap: break-word;
+}
+.entry .prose :not(pre) > code { background: var(--bg2); }
+.prose a.xref > code { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.prose a.xref:hover { text-decoration: none; }
+.prose a.xref:hover > code { background: var(--accent-soft); }
+.prose blockquote { margin: 14px 0; padding: 4px 16px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 10px 10px 0; }
+.prose strong { color: var(--text); }
+.code { position: relative; margin: 12px 0; }
+.code pre {
+  margin: 0; padding: 14px 16px; overflow-x: auto; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg2); line-height: 1.55;
+}
+.code .lang { position: absolute; right: 54px; top: 7px; font: 11px var(--mono); color: var(--dim); opacity: 0; transition: opacity .15s; }
+.code:hover .lang { opacity: .8; }
+.code .copy {
+  position: absolute; right: 7px; top: 6px; opacity: 0; transition: opacity .15s;
+  font: 11px var(--mono); color: var(--dim); background: var(--panel); border: 1px solid var(--border);
+  border-radius: 6px; padding: 1px 7px; cursor: pointer;
+}
+.code:hover .copy, .code .copy:focus { opacity: 1; }
+.code .copy.done { color: var(--accent); border-color: var(--accent); opacity: 1; }
+.t-com { color: var(--t-com); font-style: italic; } .t-str { color: var(--t-str); } .t-kw { color: var(--t-kw); }
+.t-num { color: var(--t-num); } .t-mac { color: var(--t-mac); font-weight: 600; } .t-fn { color: var(--t-fn); }
+.t-key { color: var(--t-key); } .t-sec { color: var(--t-sec); font-weight: 600; }
+.table { overflow-x: auto; margin: 12px 0; border: 1px solid var(--border); border-radius: 10px; }
+.table table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+.table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--dim); background: var(--bg2); font-weight: 600; }
+.table th, .table td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.table tr:last-child td { border-bottom: 0; }
+.table td:first-child { white-space: nowrap; }
+.table td:first-child code { white-space: nowrap; }
+
+footer { color: var(--dim); font-size: 12.5px; margin-top: 60px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+/* ---------- small screens */
+@media (max-width: 900px) {
+  header { gap: 10px; padding: 0 16px; }
+  .brand span.full, nav.tabs { display: none; }
+  #menu { display: grid; }
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  aside {
+    position: fixed; left: 0; top: 60px; width: min(320px, 86vw); z-index: 9; background: var(--bg);
+    transform: translateX(-100%); transition: transform .2s; box-shadow: 0 8px 30px rgba(0, 0, 0, .4);
+  }
+  body.menu-open aside { transform: none; }
+  aside .mobile-tabs { display: flex; }
+  main { padding: 22px 16px 80px; }
+  article.entry { padding: 14px 14px 4px; }
+  .search kbd { display: none; }
+  .search input { padding-right: 12px; }
+}
+aside .mobile-tabs { display: none; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+aside .mobile-tabs a { padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--dim); font-size: 13px; }
+aside .mobile-tabs a.on { color: var(--accent); border-color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <button class="icon-btn" id="menu" aria-label="Menu">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+  <a class="brand" href="#/ref"><span class="logo">42</span><span class="full">DeepThought <small>manual · v__VERSION__</small></span></a>
+  <nav class="tabs" id="tabs"></nav>
+  <label class="search">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Search macros, keys, commands…" autocomplete="off" spellcheck="false" aria-label="Search the manual">
+    <kbd>/</kbd>
+  </label>
+  <button class="icon-btn" id="theme" aria-label="Toggle theme" title="Toggle theme">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+  </button>
+</header>
+<div class="layout">
+  <aside id="side"></aside>
+  <main><div class="content" id="main"></div></main>
+</div>
+<script>
+const DATA = /*__DATA__*/null;
+
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+
+// ------------------------------------------------------------------ data
+const REF = DATA.reference;
+const ENTRIES = [];
+REF.sections.forEach((s, si) => s.entries.forEach((e) => {
+  e.section = s.title; e.si = si; e.key = e.names[0]; e.lnames = e.names.map((n) => n.toLowerCase());
+  ENTRIES.push(e);
+}));
+const BY_NAME = new Map();
+ENTRIES.forEach((e) => e.names.forEach((n) => {
+  if (!BY_NAME.has(n)) BY_NAME.set(n, e);
+  if (!BY_NAME.has(n.toLowerCase())) BY_NAME.set(n.toLowerCase(), e);
+}));
+const PAGES = [{ id: 'ref', title: 'Reference' }, ...DATA.pages.map((p) => ({ id: p.id, title: shortTitle(p) }))];
+
+function shortTitle(p) {
+  return { protocol: 'Protocol', 'writing-suites': 'Writing suites', architecture: 'Architecture' }[p.id] || p.title;
+}
+const entryHref = (e) => '#/ref/' + encodeURIComponent(e.key);
+
+// ------------------------------------------------------------------ theme
+const root = document.documentElement;
+const savedTheme = store.get('dt-manual-theme') || DATA.theme;
+if (savedTheme === 'light' || savedTheme === 'dark') root.dataset.theme = savedTheme;
+$('#theme').onclick = () => {
+  const dark = root.dataset.theme ? root.dataset.theme === 'dark' : !matchMedia('(prefers-color-scheme: light)').matches;
+  root.dataset.theme = dark ? 'light' : 'dark';
+  store.set('dt-manual-theme', root.dataset.theme);
+};
+
+// ------------------------------------------------------------------ search
+function score(e, terms, raw) {
+  let total = 0;
+  for (const t of terms) {
+    let s = 0;
+    for (const n of e.lnames) {
+      if (n === raw) s = Math.max(s, 1000);
+      else if (n === t) s = Math.max(s, 400);
+      else if (n.startsWith(t)) s = Math.max(s, 200);
+      else if (n.includes(t)) s = Math.max(s, 120);
+    }
+    if (!s && e.section.toLowerCase().includes(t)) s = 30;
+    if (!s && e.text.includes(t)) s = 10 + Math.min(10, e.text.split(t).length);
+    if (!s) return 0;
+    total += s;
+  }
+  return total;
+}
+function search(q) {
+  const raw = q.trim().toLowerCase();
+  const terms = raw.split(/\s+/).filter(Boolean);
+  if (!terms.length) return [];
+  return ENTRIES.map((e) => [score(e, terms, raw), e]).filter((x) => x[0] > 0)
+    .sort((a, b) => b[0] - a[0] || a[1].si - b[1].si).map((x) => x[1]);
+}
+function docHits(q) {
+  const t = q.trim().toLowerCase();
+  if (t.length < 3) return [];
+  const out = [];
+  for (const p of DATA.pages) for (const h of p.search) if (h.text.toLowerCase().includes(t)) out.push({ page: p, h });
+  return out.slice(0, 8);
+}
+function highlight(text, q) {
+  const terms = q.trim().split(/\s+/).filter(Boolean).map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  if (!terms.length) return esc(text);
+  const re = new RegExp('(' + terms.join('|') + ')', 'ig');
+  return esc(text).replace(re, '<mark>$1</mark>');
+}
+
+// ------------------------------------------------------------------ rendering
+function entryHTML(e, q = '') {
+  const names = e.names.map((n) => highlight(n, q)).join('<span class="sep">·</span>');
+  return `<article class="entry" id="e-${esc(e.key)}" data-key="${esc(e.key)}">
+    <div class="entry-head">
+      <h3><a href="${entryHref(e)}">${names}</a></h3>
+      <span class="tag">${esc(e.section)}</span>
+      <span class="tools">
+        <button class="chip" data-copy="./dt man ${esc(shellQuote(e.key))}" title="The same page in your terminal">./dt man</button>
+        <button class="chip" data-link="${esc(entryHref(e))}" title="Copy a link to this entry">#</button>
+      </span>
+    </div>
+    <div class="prose">${e.html}</div>
+  </article>`;
+}
+function shellQuote(s) { return /^[\w.@%+=:,/-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`; }
+
+function sideReference(activeKey, results) {
+  if (results) {
+    return tabsMobile('ref') + `<div class="group"><button><span>Results</span><span class="n">${results.length}</span></button><ul>` +
+      results.slice(0, 200).map((e) => `<li><a href="${entryHref(e)}" data-key="${esc(e.key)}">${esc(e.names.join(' · '))}</a></li>`).join('') +
+      '</ul></div>';
+  }
+  const closed = new Set(JSON.parse(store.get('dt-manual-closed') || '[]'));
+  return tabsMobile('ref') + REF.sections.map((s, si) => `
+    <div class="group${closed.has(s.title) ? ' closed' : ''}" data-section="${esc(s.title)}">
+      <button aria-expanded="${!closed.has(s.title)}">
+        <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        <span>${si + 1}. ${esc(s.title)}</span><span class="n">${s.entries.length}</span>
+      </button>
+      <ul>${s.entries.map((e) => `<li><a href="${entryHref(e)}" data-key="${esc(e.key)}" class="${e.key === activeKey ? 'on' : ''}">${esc(e.names.join(' · '))}</a></li>`).join('')}</ul>
+    </div>`).join('');
+}
+function tabsMobile(active) {
+  return '<div class="mobile-tabs">' + PAGES.map((p) => `<a href="${p.id === 'ref' ? '#/ref' : '#/doc/' + p.id}" class="${p.id === active ? 'on' : ''}">${esc(p.title)}</a>`).join('') + '</div>';
+}
+
+const QUICK = [
+  ['C checks', 'DT_CHECK_STR', 'DT_EXPECT_EQ_STR, labelled checks…'],
+  ['suite.toml groups', '[[group]]', 'runner, sources, matrix, when…'],
+  ['Protocol events', 'assert', 'hello, discover, start, assert, end…'],
+  ['Memory & leaks', 'dt_malloc_fail_at', 'failure injection, leaks'],
+  ['Commands', 'dt run', 'dt run, dt suite, dt project…'],
+  ['Statuses & grade', 'statuses', 'pass, fail, crash, timeout…'],
+];
+
+function renderReference(key) {
+  $('#side').innerHTML = sideReference(key);
+  const quick = QUICK.filter(([, k]) => BY_NAME.has(k)).map(([t, k, d]) =>
+    `<a href="${entryHref(BY_NAME.get(k))}"><b>${esc(t)}</b><span>${esc(d)}</span></a>`).join('');
+  $('#main').innerHTML = `
+    <div class="hero">
+      <h1>Reference manual</h1>
+      <p class="lead">${ENTRIES.length} entries · ${REF.sections.length} sections · press <kbd>/</kbd> to search</p>
+      <div class="prose">${REF.intro}</div>
+      <div class="cards">${quick}</div>
+    </div>` +
+    REF.sections.map((s, si) => `<section class="sec" id="${esc(s.anchor)}"><h2><span class="num">${si + 1}</span>${esc(s.title)}</h2>
+      ${s.entries.map((e) => entryHTML(e)).join('')}</section>`).join('') +
+    `<footer>DeepThought ${esc(DATA.version)} · generated from <code>docs/reference.md</code> · same pages in the terminal with <code>./dt man NAME</code></footer>`;
+}
+
+function renderResults(q) {
+  const results = search(q);
+  const hits = docHits(q);
+  $('#side').innerHTML = sideReference(null, results);
+  const docs = hits.length ? `<div class="doc-hits"><div class="results-head" style="margin:0 0 6px">In the guides</div>` +
+    hits.map(({ page, h }) => `<div><a href="#/doc/${page.id}/${encodeURIComponent(h.id)}">${highlight(h.text, q)}</a><span class="where">${esc(shortTitle(page))}</span></div>`).join('') + '</div>' : '';
+  $('#main').innerHTML = `<p class="results-head"><b>${results.length}</b> entr${results.length === 1 ? 'y' : 'ies'} for “${esc(q)}” · <kbd>Enter</kbd> opens the first · <kbd>Esc</kbd> clears</p>` +
+    docs + (results.length ? results.slice(0, 60).map((e) => entryHTML(e, q)).join('') :
+      `<div class="empty">Nothing matches “${esc(q)}”.<br>Try a shorter word, or browse the sections on the left.</div>`);
+  window.scrollTo(0, 0);
+}
+
+function renderDoc(page, anchor) {
+  $('#side').innerHTML = tabsMobile(page.id) + `<div class="group toc"><button><span>${esc(shortTitle(page))}</span></button><ul>` +
+    page.toc.map((h) => `<li class="toc${h.level}"><a href="#/doc/${page.id}/${encodeURIComponent(h.id)}" data-anchor="${esc(h.id)}">${esc(h.text)}</a></li>`).join('') + '</ul></div>';
+  $('#main').innerHTML = `<div class="prose">${page.html}</div>
+    <footer>DeepThought ${esc(DATA.version)} · <code>docs/${esc(page.id)}.md</code></footer>`;
+}
+
+// ------------------------------------------------------------------ routing
+let current = { view: '', page: '' };
+function route() {
+  let hash = decodeURIComponent(location.hash.slice(1));
+  if (!hash && DATA.initial) { hash = DATA.initial.replace(/^#/, ''); history.replaceState(null, '', '#' + DATA.initial.replace(/^#/, '')); }
+  document.body.classList.remove('menu-open');
+  const parts = hash.split('/');  // ["", "ref", NAME] · ["", "doc", id, anchor] · ["", "search", q]
+  const kind = parts[1] || 'ref';
+  if (kind === 'search') {
+    const q = parts.slice(2).join('/');
+    $('#q').value = q;
+    current = { view: 'search', page: 'ref' };
+    renderResults(q);
+  } else if (kind === 'doc' && DATA.pages.some((p) => p.id === parts[2])) {
+    const page = DATA.pages.find((p) => p.id === parts[2]);
+    const anchor = parts.slice(3).join('/');
+    if (current.view !== 'doc' || current.page !== page.id) renderDoc(page, anchor);
+    current = { view: 'doc', page: page.id };
+    $('#q').value = '';
+    scrollToId(anchor, false);
+  } else {
+    const name = parts.slice(2).join('/');
+    const e = name && (BY_NAME.get(name) || BY_NAME.get(name.toLowerCase()));
+    const anchor = name && !e && REF.sections.some((s) => s.anchor === name) ? name : '';
+    if (current.view !== 'ref' || $('#q').value) { $('#q').value = ''; renderReference(e ? e.key : null); }
+    current = { view: 'ref', page: 'ref' };
+    if (e) { scrollToId('e-' + e.key, true); markSide(e.key); }
+    else if (anchor) scrollToId(anchor, false);
+    else if (name) { $('#q').value = name; renderResults(name); current = { view: 'search', page: 'ref' }; }
+    else window.scrollTo(0, 0);
+  }
+  $('#tabs').innerHTML = PAGES.map((p) => `<a href="${p.id === 'ref' ? '#/ref' : '#/doc/' + p.id}" class="${p.id === current.page ? 'on' : ''}">${esc(p.title)}</a>`).join('');
+}
+function scrollToId(id, flash) {
+  if (!id) { window.scrollTo(0, 0); return; }
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({ block: 'start' });
+  if (flash) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+}
+function markSide(key) {
+  document.querySelectorAll('aside li a.on').forEach((a) => a.classList.remove('on'));
+  const a = document.querySelector(`aside li a[data-key="${CSS.escape(key)}"]`);
+  if (!a) return;
+  a.classList.add('on');
+  const group = a.closest('.group');
+  if (group && group.classList.contains('closed')) group.classList.remove('closed');
+  const side = $('#side'), r = a.getBoundingClientRect(), s = side.getBoundingClientRect();
+  if (r.top < s.top + 40 || r.bottom > s.bottom - 40) side.scrollTop += r.top - s.top - s.height / 3;
+}
+window.addEventListener('hashchange', route);
+
+// highlight the entry / heading being read
+let ticking = false;
+window.addEventListener('scroll', () => {
+  if (ticking) return;
+  ticking = true;
+  requestAnimationFrame(() => {
+    ticking = false;
+    if (current.view === 'ref') {
+      const items = document.querySelectorAll('article.entry');
+      let last = null;
+      for (const el of items) { if (el.getBoundingClientRect().top < 140) last = el; else break; }
+      if (last) markSide(last.dataset.key);
+    } else if (current.view === 'doc') {
+      const heads = document.querySelectorAll('.prose h2[id], .prose h3[id]');
+      let last = null;
+      for (const el of heads) { if (el.getBoundingClientRect().top < 140) last = el; else break; }
+      document.querySelectorAll('aside li a.on').forEach((a) => a.classList.remove('on'));
+      if (last) { const a = document.querySelector(`aside a[data-anchor="${CSS.escape(last.id)}"]`); if (a) a.classList.add('on'); }
+    }
+  });
+}, { passive: true });
+
+// ------------------------------------------------------------------ interactions
+let timer = null;
+$('#q').addEventListener('input', (ev) => {
+  clearTimeout(timer);
+  const q = ev.target.value;
+  timer = setTimeout(() => {
+    if (q.trim()) { current = { view: 'search', page: 'ref' }; renderResults(q); history.replaceState(null, '', '#/search/' + encodeURIComponent(q)); }
+    else { history.replaceState(null, '', '#/ref'); current.view = ''; route(); }
+    $('#tabs').querySelectorAll('a').forEach((a, i) => a.classList.toggle('on', PAGES[i].id === current.page));
+  }, 90);
+});
+$('#q').addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter') {
+    const first = search(ev.target.value)[0];
+    if (first) { ev.target.value = ''; ev.target.blur(); current.view = ''; location.hash = entryHref(first); route(); }
+  } else if (ev.key === 'Escape') {
+    ev.target.value = ''; ev.target.blur(); current.view = ''; location.hash = '#/ref'; route();
+  }
+});
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === '/' && document.activeElement !== $('#q') && !ev.metaKey && !ev.ctrlKey) { ev.preventDefault(); $('#q').focus(); $('#q').select(); }
+});
+$('#menu').onclick = () => document.body.classList.toggle('menu-open');
+
+function copy(text, btn, label) {
+  const done = () => { const old = btn.textContent; btn.textContent = label; btn.classList.add('done'); setTimeout(() => { btn.textContent = old; btn.classList.remove('done'); }, 1200); };
+  if (navigator.clipboard && window.isSecureContext !== false) navigator.clipboard.writeText(text).then(done, () => fallback());
+  else fallback();
+  function fallback() {
+    const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select();
+    try { document.execCommand('copy'); done(); } catch (e) {} t.remove();
+  }
+}
+document.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('button');
+  if (!btn) return;
+  if (btn.classList.contains('copy')) copy(btn.parentElement.querySelector('pre').innerText, btn, 'copied');
+  else if (btn.dataset.copy) copy(btn.dataset.copy, btn, 'copied');
+  else if (btn.dataset.link) copy(location.href.split('#')[0] + btn.dataset.link, btn, 'link copied');
+  else if (btn.parentElement && btn.parentElement.dataset.section) {
+    const g = btn.parentElement; g.classList.toggle('closed');
+    btn.setAttribute('aria-expanded', !g.classList.contains('closed'));
+    const closed = [...document.querySelectorAll('aside .group.closed')].map((x) => x.dataset.section);
+    store.set('dt-manual-closed', JSON.stringify(closed));
+  }
+});
+
+route();
+</script>
+</body>
+</html>

@@ -361,7 +361,9 @@ def cmd_doctor(args):
 def cmd_man(args):
     from deepthought.cli import man
 
-    return man.main(args.topic, args.search)
+    if args.list or args.search or (args.topic and not args.web):
+        return man.main("" if args.list else args.topic, args.search)
+    return man.open_web(args.topic or "", open_browser=not args.no_open)
 
 
 def cmd_history(args):
@@ -449,9 +451,12 @@ def build_parser():
     hist.add_argument("-n", "--limit", type=int, default=20)
     hist.set_defaults(func=cmd_history)
 
-    man = sub.add_parser("man", help="the reference manual: every command, key, macro and protocol element")
+    man = sub.add_parser("man", help="the manual: opens in your browser; with a TOPIC, prints that entry here")
     man.add_argument("topic", nargs="?", help="an entry (DT_CHECK_STR, assert, [[group]], dt run…) or part of its name")
-    man.add_argument("-k", dest="search", action="store_true", help="search the text of the entries")
+    man.add_argument("-k", dest="search", action="store_true", help="search the text of the entries (terminal)")
+    man.add_argument("-w", "--web", action="store_true", help="open TOPIC in the browser instead of the terminal")
+    man.add_argument("-l", "--list", action="store_true", help="list every entry in the terminal")
+    man.add_argument("--no-open", action="store_true", help="build the web manual and print its path")
     man.set_defaults(func=cmd_man)
     return p
 

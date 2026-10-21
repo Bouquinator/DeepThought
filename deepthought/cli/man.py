@@ -164,3 +164,26 @@ def main(topic, search_text=False):
         print(f"  {c(' · '.join(e.names), 'cyan')}" + c(f"  ({e.section})", "dim"))
     print(c("\n./dt man NAME shows one of them", "dim"))
     return 0
+
+
+def open_web(topic="", open_browser=True):
+    """Build the web manual into the cache folder and open it in the browser."""
+    import webbrowser
+    from urllib.parse import quote
+
+    from deepthought.core.config import Config
+    from deepthought.manual.build import build
+
+    config = Config()
+    if not REFERENCE.exists():
+        print(c(f"the reference manual is missing: {REFERENCE}", "red"))
+        return 1
+    initial = f"#/ref/{quote(topic, safe='')}" if topic else ""
+    page = build(paths.cache_dir(config["cache_dir"]) / "manual", initial=initial, theme=config["theme"])
+    url = page.as_uri()
+    print(c("📖 DeepThought manual", "bold") + "  " + c(url + (initial if topic else ""), "cyan"))
+    if open_browser and not webbrowser.open(url):
+        print(c("   could not open a browser: open the link above yourself", "yellow"))
+    elif open_browser:
+        print(c("   opened in your browser · ./dt man TOPIC prints one entry here", "dim"))
+    return 0

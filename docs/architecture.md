@@ -33,6 +33,7 @@ deepthought/
   harness/    c/ (dt.h, dt_main.c, dt_alloc.c) · python/dtharness.py
   server/     app.py (HTTP + auth) · api.py (JSON routes) · sse.py (live events)
   web/        index.html · app.js (store, router, SSE) · components/*.js · styles/app.css · vendor/
+  manual/     `dt man` web manual: markdown.py (docs → HTML) · build.py · page.html (standalone page, no server)
 suites/       official suites (get_next_line)
 community/    bundled community suites (sstyle: SStyles93's libft and ft_printf tests, ported)
 templates/    scaffolds for `dt suite new` (one per runner)
