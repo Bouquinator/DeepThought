@@ -30,8 +30,10 @@ export function FolderPicker({ start, onPick, onClose, title, pickLabel }) {
     </div>
     <div class="picker">
       ${dir.parent && html`<div class="pick-row" onClick=${() => load(dir.parent)}>📁 ..</div>`}
-      ${dir.dirs.map((d) => html`<div class="pick-row" onClick=${() => load(d.path)}>
-        📁 ${d.name} ${d.has_makefile && html`<span class="tag">Makefile</span>`} ${d.has_suite && html`<span class="tag">suite</span>`}</div>`)}
+      ${dir.dirs.map((d) => html`<div class=${'pick-row' + (d.locked ? ' dim' : '')} onClick=${() => load(d.path)}
+        title=${d.locked ? 'no access right now (e.g. a network mount that is not available)' : ''}>
+        ${d.locked ? '🔒' : '📁'} ${d.name} ${d.locked && html`<span class="tag">no access</span>`}
+        ${d.has_makefile && html`<span class="tag">Makefile</span>`} ${d.has_suite && html`<span class="tag">suite</span>`}</div>`)}
       ${!dir.dirs.length && html`<div class="dim small pick-empty">No sub-folders. ${dir.files.length} file(s) here.</div>`}
     </div>
     <div class="row gap modal-foot">

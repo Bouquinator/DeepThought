@@ -2,6 +2,7 @@
 
 import json
 import re
+import stat
 import shutil
 import subprocess
 from pathlib import Path
@@ -316,21 +317,38 @@ def browse(h, m, q):
         entries = sorted(path.iterdir(), key=lambda p: p.name.lower())
     except (OSError, PermissionError) as e:
         raise ApiError(f"cannot open {path}: {e}")
-    dirs = []
+    dirs, files = [], []
     for p in entries:
         if p.name.startswith(".") and q.get("hidden") != "1":
             continue
+        # one unreadable entry (e.g. ~/sgoinfre when its mount refuses access)
+        # must never break the whole listing
         try:
-            if p.is_dir():
-                dirs.append({"name": p.name, "path": str(p),
-                             "has_makefile": (p / "Makefile").exists(),
-                             "has_suite": (p / "suite.toml").exists()})
+            is_dir = stat.S_ISDIR(p.stat().st_mode)  # explicit: is_dir() hides errors on some Pythons
         except OSError:
+            dirs.append({"name": p.name, "path": str(p), "locked": True,
+                         "has_makefile": False, "has_suite": False})
             continue
-    files = [p.name for p in entries if p.is_file() and not p.name.startswith(".")][:200]
-    kind, _ = detect(path, h.app.registry.enabled()) if files else ("", [])
+        if is_dir:
+            dirs.append({"name": p.name, "path": str(p), "locked": False,
+                         "has_makefile": _exists(p / "Makefile"), "has_suite": _exists(p / "suite.toml")})
+        elif len(files) < 200:
+            files.append(p.name)
+    kind = ""
+    if files:
+        try:
+            kind, _ = detect(path, h.app.registry.enabled())
+        except OSError:
+            kind = ""
     return {"path": str(path), "parent": str(path.parent) if path.parent != path else None,
             "dirs": dirs, "files": files, "kind": kind, "home": str(Path.home())}
+
+
+def _exists(path):
+    try:
+        return path.exists()
+    except OSError:
+        return False
 
 
 @_route("POST", "/api/open")

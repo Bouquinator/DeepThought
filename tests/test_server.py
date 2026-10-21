@@ -77,6 +77,28 @@ class ServerTests(unittest.TestCase):
             code, err = self.req("/api/projects/link", "POST", {"path": d, "suite": "nope"})
             self.assertEqual(code, 400)
 
+    def test_browse_survives_unreadable_entries(self):
+        """~/sgoinfre on 42 machines: stat() can fail with Permission denied."""
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            os.mkdir(os.path.join(d, "closed"))
+            os.mkdir(os.path.join(d, "closed", "inside"))
+            os.symlink(os.path.join(d, "closed", "inside"), os.path.join(d, "sgoinfre"))
+            open(os.path.join(d, "Makefile"), "w").close()
+            os.chmod(os.path.join(d, "closed"), 0)
+            try:
+                if os.access(os.path.join(d, "closed", "inside"), os.F_OK):
+                    self.skipTest("running with privileges that ignore permissions")
+                code, data = self.req(f"/api/fs/browse?path={d}")
+                self.assertEqual(code, 200, data)
+                entry = next(x for x in data["dirs"] if x["name"] == "sgoinfre")
+                self.assertTrue(entry["locked"])
+                self.assertIn("Makefile", data["files"])
+            finally:
+                os.chmod(os.path.join(d, "closed"), 0o755)
+
     def test_static_and_traversal(self):
         with urllib.request.urlopen(self.base + "/app.js") as r:
             self.assertIn("text/javascript", r.headers["Content-Type"])
