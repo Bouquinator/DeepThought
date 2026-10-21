@@ -94,6 +94,7 @@ In the web UI: add the folder (optionally with a type), then use **☰ Suites** 
 | `./dt project list \| add PATH [TYPE] \| kind PATH TYPE\|auto \| link PATH SUITE… \| unlink PATH SUITE… \| auto PATH` | your projects: type and linked suites |
 | `./dt history [path]` | past runs and grades |
 | `./dt doctor` | check your environment (compiler, norminette, nm, git, cache dir) |
+| `./dt man [topic]` | the reference manual in your terminal: `./dt man DT_CHECK_STR`, `./dt man "[[group]]"`, `./dt man -k leak` |
 
 ## Write your own tests
 
@@ -102,6 +103,8 @@ In the web UI: add the folder (optionally with a type), then use **☰ Suites** 
 ```
 
 Then read **[docs/writing-suites.md](docs/writing-suites.md)**. It covers everything from a five-minute tutorial to the full reference (C harness, exec cases, Python, the protocol for other languages), how to test your suite, and how to share it.
+
+Every macro, function, key and protocol event has its own page in **[docs/reference.md](docs/reference.md)**, also available offline with `./dt man NAME`.
 
 Example of a C test:
 
@@ -127,8 +130,9 @@ exit = "nonzero"
 ## Documentation
 
 - [docs/writing-suites.md](docs/writing-suites.md): writing, testing and sharing suites
+- [docs/reference.md](docs/reference.md): the reference manual — every command, setting, `suite.toml` key, macro, function and protocol element (`./dt man`)
 - [docs/architecture.md](docs/architecture.md): how the system works, and how to extend it
-- [docs/protocol.md](docs/protocol.md): the DeepThought Test Protocol (testing any language)
+- [docs/protocol.md](docs/protocol.md): the DeepThought Test Protocol, in full: transport, lifecycle, every event and field, encoding, timeouts, example producers
 
 ## Where things go
 

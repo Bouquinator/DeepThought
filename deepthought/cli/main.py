@@ -358,6 +358,12 @@ def cmd_doctor(args):
     return 0 if ok else 1
 
 
+def cmd_man(args):
+    from deepthought.cli import man
+
+    return man.main(args.topic, args.search)
+
+
 def cmd_history(args):
     from deepthought.cli.reporter_plain import c
     from deepthought.core import history
@@ -442,6 +448,11 @@ def build_parser():
     hist.add_argument("path", nargs="?", default=".")
     hist.add_argument("-n", "--limit", type=int, default=20)
     hist.set_defaults(func=cmd_history)
+
+    man = sub.add_parser("man", help="the reference manual: every command, key, macro and protocol element")
+    man.add_argument("topic", nargs="?", help="an entry (DT_CHECK_STR, assert, [[group]], dt run…) or part of its name")
+    man.add_argument("-k", dest="search", action="store_true", help="search the text of the entries")
+    man.set_defaults(func=cmd_man)
     return p
 
 
@@ -470,7 +481,7 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if "--no-update" in argv:
         argv.remove("--no-update")
-    elif not set(argv) & {"-h", "--help", "--version", "update"}:
+    elif not set(argv) & {"-h", "--help", "--version", "update"} and argv[:1] != ["man"]:
         _auto_update(argv)
     parser = build_parser()
     if not argv or (argv[0] not in parser._subparsers._group_actions[0].choices and not argv[0].startswith("-")):
