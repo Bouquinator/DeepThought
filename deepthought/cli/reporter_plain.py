@@ -6,7 +6,7 @@ import sys
 import threading
 from xml.sax.saxutils import escape as xml_escape
 
-from deepthought.core.models import FAILED_STATUSES, PASS, SKIP
+from deepthought.core.models import FAILED_STATUSES, PASS, SKIP, SUITE_ERROR
 
 USE_COLOR = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
 CODES = {"red": 31, "green": 32, "yellow": 33, "blue": 34, "magenta": 35, "cyan": 36, "dim": 2, "bold": 1}
@@ -22,6 +22,7 @@ ICONS = {
     "pass": ("✓", "green"), "fail": ("✗", "red"), "crash": ("💥", "red"), "timeout": ("⏱", "magenta"),
     "leak": ("💧", "yellow"), "error": ("!", "red"), "build_error": ("⚒", "red"), "skip": ("–", "dim"),
     "warn": ("!", "yellow"), "pending": ("·", "dim"), "running": ("…", "cyan"),
+    "suite_error": ("⚠", "magenta"),
 }
 
 
@@ -190,7 +191,27 @@ class PlainReporter:
                 self._print(c(f"  … and {len(failed) - 60} more (open the web UI: ./dt)", "dim"))
         if info:
             self._print(c(f"\n  ~ {info} informational difference(s) (extra groups, not graded: see the web UI)", "yellow"))
+        self._suite_problems(run)
         self._totals(run)
+
+    def _suite_problems(self, run):
+        """Problems of the test suite itself: shown apart, they are not the student's fault."""
+        rows = [(g, t["id"], t.get("reason") or "") for g in run["groups"] for t in g["tests"]
+                if t["status"] == SUITE_ERROR]
+        rows += [(g, "", g.get("message") or "") for g in run["groups"] if g["status"] == SUITE_ERROR and not g["tests"]]
+        if not rows or self.quiet:
+            return
+        self._print()
+        self._print(c(f"─── {len(rows)} problem(s) in the test suite, not in your code: not graded " + "─" * 8,
+                      "magenta", "bold"))
+        for g, tid, reason in rows[:30]:
+            what = f"{c(g['name'], 'dim')} › {c(tid, 'bold')}" if tid else c(g["name"], "bold")
+            self._print(f"  {icon(SUITE_ERROR)} {what}")
+            if reason:
+                self._print(c(f"      {reason.splitlines()[0]}", "magenta"))
+        if len(rows) > 30:
+            self._print(c(f"  … and {len(rows) - 30} more", "dim"))
+        self._print(c("      Tell the suite's author (./dt suite info ID shows where it comes from).", "dim"))
 
     def _failure(self, g, t):
         self._print()
@@ -237,9 +258,9 @@ class PlainReporter:
             for t in g["tests"]:
                 counts[t["status"]] = counts.get(t["status"], 0) + 1
         parts = []
-        for status in ("pass", "fail", "crash", "timeout", "leak", "error", "skip"):
+        for status in ("pass", "fail", "crash", "timeout", "leak", "error", "skip", "suite_error"):
             if counts.get(status):
-                parts.append(f"{icon(status)} {counts[status]} {status}")
+                parts.append(f"{icon(status)} {counts[status]} {status.replace('_', ' ')}")
         self._print(c("─" * 60, "dim"))
         self._print("  " + "   ".join(parts))
         m, b = score.get("mandatory", {}), score.get("bonus", {})
@@ -247,8 +268,13 @@ class PlainReporter:
         if b.get("total"):
             line += f"   bonus {b.get('passed', 0)}/{b.get('total', 0)}"
         grade = score.get("grade", 0)
-        color = "green" if grade >= 100 and score.get("verdict") == "ok" else "red"
-        line += "   grade " + c(f"{grade}/100", color, "bold")
+        if grade is None:
+            line += "   grade " + c("—", "magenta", "bold")
+        else:
+            color = "green" if grade >= 100 and score.get("verdict") == "ok" else "red"
+            line += "   grade " + c(f"{grade}/100", color, "bold")
+        if score.get("suite_errors"):
+            line += c(f"   ⚠ incomplete: {score['suite_errors']} suite problem(s)", "magenta")
         if score.get("flags"):
             line += c(f"   ⚠ {', '.join(score['flags'])}", "yellow")
         if score.get("regressions"):
@@ -263,6 +289,8 @@ class PlainReporter:
 
 
 def exit_code(run):
+    """0 all good · 1 the project fails something · 2 the run could not start ·
+    3 nothing failed, but the test suite itself had problems (suite errors)."""
     if run.get("error"):
         return 2
     score = run.get("score") or {}
@@ -270,7 +298,11 @@ def exit_code(run):
     failed = any(t["status"] in FAILED_STATUSES for g in graded for t in g["tests"])
     failed = failed or any(g["status"] == "build_error" for g in graded)
     failed = failed or bool(score.get("flags"))
-    return 1 if failed else 0
+    if failed:
+        return 1
+    suite = any(t["status"] == SUITE_ERROR for g in graded for t in g["tests"])
+    suite = suite or any(g["status"] == SUITE_ERROR and not g["tests"] for g in graded)
+    return 3 if suite else 0
 
 
 def junit(run):
@@ -279,13 +311,17 @@ def junit(run):
         tests = g["tests"]
         fails = sum(1 for t in tests if t["status"] in FAILED_STATUSES)
         skips = sum(1 for t in tests if t["status"] == SKIP)
-        lines.append(f'  <testsuite name="{xml_escape(g["name"])}" tests="{len(tests)}" failures="{fails}" skipped="{skips}">')
+        errors = sum(1 for t in tests if t["status"] == SUITE_ERROR)
+        lines.append(f'  <testsuite name="{xml_escape(g["name"])}" tests="{len(tests)}" failures="{fails}" '
+                     f'errors="{errors}" skipped="{skips}">')
         for t in tests:
             lines.append(f'    <testcase classname="{xml_escape(g["gid"])}" name="{xml_escape(t["id"])}" time="{t["ms"] / 1000:.3f}">')
             if t["status"] in FAILED_STATUSES:
                 detail = "\n".join(f"{a['msg']}: expected {a.get('expected')!r}, got {a.get('actual')!r}" for a in t["asserts"])
                 lines.append(f'      <failure type="{t["status"]}" message="{xml_escape(t.get("reason") or t["status"])}">'
                              f"{xml_escape(detail)}</failure>")
+            elif t["status"] == SUITE_ERROR:
+                lines.append(f'      <error type="suite_error" message="{xml_escape(t.get("reason") or "suite error")}"/>')
             elif t["status"] == SKIP:
                 lines.append("      <skipped/>")
             lines.append("    </testcase>")

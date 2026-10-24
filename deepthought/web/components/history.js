@@ -45,7 +45,7 @@ export function HistoryPage({ path }) {
       <span class="grow"></span>
       ${r.score && r.score.regressions > 0 && html`<span class="pill pill-regression">${r.score.regressions} regression(s)</span>`}
       ${r.score && r.score.fixed > 0 && html`<span class="pill pill-pass">${r.score.fixed} fixed</span>`}
-      <strong>${r.score ? r.score.grade : '—'}</strong><span class="dim small">/100</span>
+      <strong>${r.score && r.score.grade != null ? r.score.grade : '—'}</strong><span class="dim small">/100</span>
     </div>`)}</div>` : html`<${Empty} title="No runs yet" />`}
     ${pick.length === 2 && html`<${Compare} a=${[...pick].sort()[0]} b=${[...pick].sort()[1]} />`}
   </div>`;

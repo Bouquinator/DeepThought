@@ -118,7 +118,7 @@ your project ──copy──▶ isolated workspace ──[build] command──�
 - The student's folder is **never modified**. Everything happens in a copy (`/tmp/dt-$USER/ws/…` or goinfre), so `{project}` always points to that copy.
 - A suite is **matched to a project** through `[suite].project` and `[detect]`. When the user runs a folder, DeepThought finds the best-matching project kind and runs **every enabled suite of that kind**. Your suite therefore runs next to the other suites of that type.
 - **Users can also attach any suite to any project themselves** (`./dt project link PATH SUITE`, `--link PATH`, or ☰ Suites in the UI), and give their own projects a type. A suite without `[detect]` only runs where it is linked, which suits personal or very specific suites.
-- Each test gets a **status**: `pass`, `fail` (an expectation failed), `crash` (signal: segfault, abort…), `timeout`, `leak` (memory still allocated at the end), `build_error` (your test file did not compile against their code), `skip` or `error` (harness problem).
+- Each test gets a **status**: `pass`, `fail` (an expectation failed), `crash` (signal: segfault, abort…), `timeout`, `leak` (memory still allocated at the end), `build_error` (your test file did not compile against their code), `skip` or `error` (harness problem), or `suite_error` (a problem in *your suite*, not in their code: see [Fixtures](#fixtures-files-and-stdin)). Suite errors never count against the student.
 - **Grade**: like the moulinette. The mandatory pass rate gives 0–100, and bonus tests add up to +25, but only when mandatory is at 100%.
 
 ---
@@ -223,7 +223,7 @@ ref = "473a2dc997f68a4047ca36f073c1f84097e5471b"      # a commit (pinned) or a b
 into = "../upstream"                                  # inside the suite folder or its parent (shared)
 ```
 
-With a commit `ref`, the network is used only once. With a branch, the checkout is refreshed by `./dt suite update ID`. If the download fails (offline), the suite's groups are reported as build errors with that reason, and other suites still run.
+With a commit `ref`, the network is used only once. With a branch, the checkout is refreshed by `./dt suite update ID`. If the download fails (offline), the suite's groups are reported as suite problems (`suite_error`, not counted against the student) with that reason, and other suites still run.
 
 ### Platform-specific settings
 
@@ -400,10 +400,35 @@ dup2(fd, 0);              // make it stdin: each test is its own process, so thi
 
 Tests run in a scratch folder (`{out}`), so they may create files freely.
 
+**When a fixture is missing, it's your suite's fault, not the student's.** Don't report it with a check (a student would lose points for it, or worse, `get_next_line(-1)` would return NULL and the test would *pass* without reading anything). Stop the test with `dt_error` instead:
+
+```c
+int	fd = open(dt_fixture("multi.txt"), O_RDONLY);
+
+if (fd < 0)
+	dt_error("fixture multi.txt cannot be opened: %s", strerror(errno));   // needs <errno.h>
+```
+
+The test gets the status **`suite_error`**: shown in pink (⚠) under *Problems in the test suite*, never counted against the student (the verdict becomes *incomplete*), never a regression, and re-run by **Retest failed** once you've fixed it. `dt run` exits with 3 when suite problems are the only problems. Use it for anything that's the suite's responsibility: fixtures, reference files, a setup step of the test that fails. In Python it's `error("…")`. DeepThought also reports these by itself: a `sources` pattern that matches nothing, an unreadable cases file or `stdin_file`, a `[[fetch]]` that can't be downloaded.
+
+A helper keeps the tests short (this is what the official get_next_line suite does):
+
+```c
+static int	open_fixture(const char *name)
+{
+	int	fd = open(dt_fixture(name), O_RDONLY);
+
+	if (fd < 0)
+		dt_error("fixture %s cannot be opened: %s", name, strerror(errno));
+	return (fd);
+}
+```
+
 ### Notes and skipping
 
 - `dt_note("first difference at c = %d", c)` adds a line to the test's details.
 - `dt_skip("needs a terminal")` marks the test as skipped and stops it.
+- `dt_error("fixture %s missing", name)` stops it as a **suite problem** (see above).
 
 ### A matrix: get_next_line
 
@@ -441,7 +466,7 @@ Every test in the UI has a **Reproduce** command such as:
 cd /tmp/dt-you/ws/…/out/libft/part-1-libc-functions && DT_FIXTURES=… ./dt_ft_strlcpy --run ft_strlcpy/truncates
 ```
 
-Without `DT_REPORT_FD` the binary prints readable results. `./dt_ft_strlcpy --list` lists its tests. `DT_NO_FORK=1` runs tests in-process, so you can use `lldb`/`gdb`:
+Without `DT_REPORT_FD` the binary prints readable results. `./dt_ft_strlcpy --list` lists its tests. `DT_NO_FORK=1` runs tests in-process, so you can use `lldb`/`gdb` (a failed `DT_ASSERT`, `dt_skip` and `dt_error` still stop only that test):
 
 ```sh
 DT_NO_FORK=1 lldb ./dt_ft_strlcpy -- --run ft_strlcpy/truncates
@@ -491,7 +516,7 @@ check = "{suite}/check_sorted.sh 3 2 5 1 4"     # receives the program's stdout 
 | `id` | explicit id (optional) |
 | `desc` | description shown in the UI |
 | `cmd` | list (no shell: safest) or string (split like a shell). With `shell = true` the string runs through `/bin/sh -c` (pipes, redirections). |
-| `stdin` / `stdin_file` | input text / file (relative to the suite) |
+| `stdin` / `stdin_file` | input text / file (relative to the suite; a missing file makes the case a `suite_error`) |
 | `timeout` | seconds |
 | `env` | extra environment variables |
 | `input` | how to describe the input in failures (default: the command line and stdin, automatically) |
@@ -543,6 +568,7 @@ def shout():
 | `expect_output(fn, expected, *args)` | what `fn(*args)` prints |
 | `capture_stdout()` | `with capture_stdout() as out: …` then `out.text` |
 | `fixture("name")`, `note(msg)`, `skip(reason)`, `fail(msg)` | |
+| `error(msg)` | stops the test as a **suite problem** (`suite_error`): a missing fixture, not the student's fault |
 
 Each test runs in its own forked process. Uncaught exceptions are reported as `crash` with the exception and the line, infinite loops as `timeout`, and `sys.exit()` as a failure. If the student's module does not even import (syntax error), the file shows a `build_error` test containing the traceback. Example: [`examples/suites/py-calc`](../examples/suites/py-calc).
 
@@ -625,6 +651,7 @@ Users see a **trust warning** before adding a suite, because a suite contains co
 - [ ] One behaviour per test: a failing test should tell the student *what* is wrong without reading the code.
 - [ ] Prefer comparing with the real function over hard-coded values.
 - [ ] Free everything (or call `dt_leaks_ignore()` with a comment explaining why).
+- [ ] A fixture or setup step that fails stops the test with `dt_error` (Python: `error`), never with a check.
 - [ ] Bonus groups use `category = "bonus"` and a `when` condition.
 - [ ] Libraries use `split = true`.
 - [ ] No reliance on undefined behaviour (passes in sanitizer mode on a correct project).
@@ -639,6 +666,7 @@ Users see a **trust warning** before adding a suite, because a suite contains co
 |---|---|
 | "no installed suite recognises …" | `[detect]` doesn't match. Check `files`/`makefile_name`, or run with `--suite your-id`. |
 | My suite is not in the list | `./dt suite list` shows suites with errors and why. In the UI: Suites › "Suites with errors". |
+| Tests show ⚠ *suite problem* | Your suite has a problem (a fixture missing, a `sources` pattern that matches nothing…): the reason is on the test or the group. It doesn't count against the student. Fix it, then **Retest failed**. |
 | Every test is `build_error` | Open the group (click its name): the compile command and log are there. Usually a header path (`include`) or a missing library in `link`. |
 | `<file>/compile` build error (split mode) | That test file uses a function the project doesn't have, or a wrong prototype. Expected for unfinished projects. |
 | A test leaks but the code is correct | You forgot to free something in the test, or the project legitimately keeps memory (gnl static buffer): `dt_leaks_ignore()`. |

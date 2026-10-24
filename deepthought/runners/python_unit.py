@@ -20,6 +20,7 @@ class PythonUnitRunner(DTPProcessRunner):
         missing = [f for f in self.globs(self.group.tests) if not f.endswith(".py")]
         if missing:
             self.build_log = "not python files:\n" + "\n".join(missing)
+            self.suite_problem = "its `tests` list files that are not Python files"
             return False
         self.build_cmd = " ".join(shlex.quote(c) for c in self.command())
         return True

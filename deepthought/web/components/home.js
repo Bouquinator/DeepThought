@@ -125,7 +125,7 @@ export function Home() {
         <${StatusIcon} status=${r.status === 'done' ? (r.score && r.score.verdict === 'ok' ? 'pass' : 'fail') : r.status} />
         <strong>${r.project.name}</strong><span class="dim small">${r.project.kind}</span>
         <span class="grow"></span>
-        <span class="small">${r.score ? `${r.score.grade}/100` : r.status}</span>
+        <span class="small">${r.score ? (r.score.grade == null ? '—' : `${r.score.grade}/100`) : r.status}</span>
         <span class="dim small">${timeAgo(r.started)}</span></a>`)}</div>
     </section>`}
     ${picker && html`<${FolderPicker} start=${path || s.home} onPick=${add} onClose=${() => setPicker(false)} title="Choose your project folder" />`}

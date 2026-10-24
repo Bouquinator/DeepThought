@@ -5,9 +5,10 @@ from dataclasses import asdict, dataclass, field
 PENDING, RUNNING = "pending", "running"
 PASS, FAIL, CRASH, TIMEOUT, LEAK = "pass", "fail", "crash", "timeout", "leak"
 ERROR, SKIP, BUILD_ERROR = "error", "skip", "build_error"
+SUITE_ERROR = "suite_error"  # a problem in the test suite, not in the student's code
 
 FAILED_STATUSES = {FAIL, CRASH, TIMEOUT, LEAK, ERROR, BUILD_ERROR}
-DONE_STATUSES = FAILED_STATUSES | {PASS, SKIP}
+DONE_STATUSES = FAILED_STATUSES | {PASS, SKIP, SUITE_ERROR}
 
 
 @dataclass
@@ -61,7 +62,7 @@ class GroupState:
         return d
 
     def refresh_status(self):
-        if self.status in (BUILD_ERROR, SKIP, ERROR) and not self.tests:
+        if self.status in (BUILD_ERROR, SKIP, ERROR, SUITE_ERROR) and not self.tests:
             return
         states = [t.status for t in self.tests.values()]
         if not states:
@@ -70,6 +71,8 @@ class GroupState:
             self.status = RUNNING if any(s != PENDING for s in states) else self.status
         elif any(s in FAILED_STATUSES for s in states):
             self.status = FAIL
+        elif any(s == SUITE_ERROR for s in states):
+            self.status = SUITE_ERROR
         elif all(s == SKIP for s in states):
             self.status = SKIP
         else:

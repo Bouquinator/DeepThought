@@ -133,6 +133,13 @@ The *DeepThought Test Protocol*: JSON lines written by every test process to the
 
 A data file shipped with a suite, in its `fixtures/` folder (or the folder named by `fixtures`). Tests get its absolute path with `dt_fixture()` (C), `fixture()` (Python), `$DT_FIXTURES` or `{fixtures}`.
 
+### suite problem
+
+A problem in the **test suite itself**, not in the student's code: a fixture that can't be opened, a reference file that's missing, test sources that don't exist, a cases file that can't be read, a dependency that couldn't be downloaded. The test (or the whole group) gets the status `suite_error`, shown in pink with ⚠ and listed apart as *Problems in the test suite*. It's **never counted against the student**: it's left out of the grade, it's never a regression, and it doesn't make `dt run` fail (exit status 3 instead). *Retest failed* runs it again, so the suite's author can check a fix.
+
+Suites report their own problems with `dt_error()` (C) and `error()` (Python); DeepThought reports the others by itself.
+See also: dt_error, error, statuses, grade.
+
 ### regression
 
 A test that passed in the previous comparable run of the same project and fails now. Shown with a marker in the UI and counted in the run's score (`regressions`). The opposite is **fixed**. Runs in sanitizer mode are compared only with sanitizer runs.
@@ -209,7 +216,7 @@ Test a project (default: the current folder) in the terminal and print a coloure
 | `--json FILE` | write the complete result as JSON |
 | `--junit FILE` | write a JUnit XML report (for CI) |
 
-Exit status: `0` everything passed, `1` a graded test failed, a build failed, or a check flagged the project (norminette, forbidden, relink, rules, files), `2` the run could not start (no suite for this project…). Groups with category `extra` don't affect it.
+Exit status: `0` everything passed, `1` a graded test failed, a build failed, or a check flagged the project (norminette, forbidden, relink, rules, files), `2` the run could not start (no suite for this project…), `3` nothing failed but some tests hit a **suite problem** (the result is incomplete). Groups with category `extra` don't affect it.
 
 ### dt tui
 
@@ -440,7 +447,7 @@ A git repository the suite needs, downloaded before the first run (stage *Test s
 | `ref` | | commit (fetched once, then offline), branch or tag (refreshed by `dt suite update`). Default: the default branch. |
 | `into` | | where to clone, relative to the suite. It must stay inside the suite folder or its parent, so sibling suites can share one checkout. Default: NAME. |
 
-If the download fails, the suite's groups are `build_error` with the reason; other suites still run.
+If the download fails, the suite's groups get the status `suite_error` (a suite problem: not counted against the student) with the reason; other suites still run.
 
 ### [forbidden]
 
@@ -528,7 +535,7 @@ One test of an `exec` group, in the file named by the group's `cases`. The progr
 | `cmd` | list or string | the command. A list runs without a shell (safest). A string is split like a shell would. |
 | `shell` | bool | `true`: run the `cmd` string through `/bin/sh -c` (pipes, redirections, `&&`). A string starting with `sh ` also does. |
 | `stdin` | string | text given on stdin (placeholders allowed) |
-| `stdin_file` | string | file given on stdin, relative to the suite |
+| `stdin_file` | string | file given on stdin, relative to the suite. If it's missing, the case is a `suite_error`. |
 | `timeout` | number | seconds (default: the group's) |
 | `env` | table | extra environment variables |
 | `input` | string | how the input is described in failures. Default: the command line (with `<project>` for the project path) and the start of stdin. |
@@ -924,6 +931,24 @@ void dt_skip(const char *reason);
 
 Stop the test and mark it `skip` with the reason (as a note). For tests that can't run in this environment. Skipped tests don't count in the grade.
 
+### dt_error
+
+```c
+void dt_error(const char *fmt, ...);   /* never returns */
+```
+
+Stop the test because of a **problem in the test suite**, not in the student's code: a fixture that can't be opened, a reference that can't be computed, an environment the test can't work in. printf-like, up to 1023 characters. The test ends with the status `suite_error` and your message as its reason; what it printed so far is kept. It's shown in pink with ⚠ under *Problems in the test suite*, left out of the grade, never a regression, and *Retest failed* runs it again.
+
+```c
+int fd = open(dt_fixture("multi.txt"), O_RDONLY);
+
+if (fd < 0)
+	dt_error("fixture multi.txt cannot be opened: %s", strerror(errno));
+```
+
+Use it only for the suite's own problems. When the student's code is wrong, use a check (`DT_ASSERT`, `DT_FAIL`…) instead. It also stops the test in `DT_NO_FORK` mode. Memory still allocated is not reported as a leak.
+See also: suite problem, dt_skip, DT_FAIL, error.
+
 ### t_dt_capture
 
 ```c
@@ -1115,6 +1140,7 @@ Exit codes of a test's child process, read by the parent harness:
 | 1 | `fail` (a check failed, or a `DT_ASSERT_*` stopped the test) |
 | 2 | `skip` |
 | 3 | `leak` |
+| 5 | the test reported its own end (`dt_error`: `suite_error`) |
 | other | `error` |
 | killed by `SIGALRM` | `timeout` |
 | killed by another signal | `crash`, with the signal name and an explanation |
@@ -1129,7 +1155,7 @@ Environment variable. `DT_NO_FORK=1` runs tests in the binary's own process, wit
 DT_NO_FORK=1 lldb ./dt_tests -- --run ft_split/empty
 ```
 
-A crash then stops the whole binary.
+A crash then stops the whole binary. A failed `DT_ASSERT_*`, `dt_skip` and `dt_error` still stop the test (and only that test), as with fork.
 
 ### DT_OUTPUT_MAX
 
@@ -1281,6 +1307,20 @@ skip(reason="")
 
 Stop the test and mark it `skip`.
 
+### error
+
+```python
+error(msg)
+```
+
+Stop the test because of a **problem in the test suite** (a missing fixture, a reference that can't be loaded), not in the student's code. The test ends with the status `suite_error` and `msg` as its reason: left out of the grade, never a regression. Same as `dt_error` in C.
+
+```python
+path = fixture("data.csv")
+if not os.path.exists(path):
+    error("fixture data.csv is missing")
+```
+
 ### fail
 
 ```python
@@ -1369,7 +1409,7 @@ Memory still allocated at the end of the test. Informational: the status comes w
 {"t":"end","id":"…","status":"crash","ms":3,"exit":1,"signal":"SIGSEGV","reason":"…","output":"…"}
 ```
 
-The test's result, exactly once per started test. `status` required (section 13). `ms` duration, `exit` exit code, `signal` signal name, `reason` one explanatory sentence, `output` what the test printed (truncated).
+The test's result, exactly once per started test. `status` required (section 13); `suite_error` says the problem is in the suite, not in the student's code. `ms` duration, `exit` exit code, `signal` signal name, `reason` one explanatory sentence, `output` what the test printed (truncated).
 
 ### done
 
@@ -1403,6 +1443,7 @@ In `expected`, `actual` and `output`, each code point from U+0000 to U+00FF stan
 | `build_error` | the tests couldn't compile or load against the project, or the build failed | failed |
 | `error` | the harness or runner failed | failed |
 | `skip` | not run on purpose (condition, `dt_skip`, not selected in a re-run) | not counted |
+| `suite_error` | a problem in the test suite, not in the student's code (`dt_error`, missing fixture, download failed…) | not counted; the verdict becomes `incomplete` |
 
 ### grade
 
@@ -1411,12 +1452,13 @@ Moulinette-style, per suite and for the whole run:
 - The **mandatory** pass rate gives the grade, 0 to 100 (rounded down). Skipped tests don't count.
 - **Bonus** tests add up to +25 (`25 × passed / total`), **only when mandatory is at 100**.
 - `extra` groups are shown with their own pass rate but never graded.
+- **Suite problems** (`suite_error`) are left out, like skipped tests, and counted apart (`suite_errors` in the score). If they leave the mandatory part without any graded test, there is no grade (shown as —).
 - A failed **build** gives 0.
 - A suite with only bonus tests gets 125 if they all pass, 0 otherwise.
 
 ### verdict
 
-`ok` when the grade is at least 100 and neither norminette nor forbidden functions failed; `ko` otherwise. It's what the moulinette would say, roughly.
+`ok` when the grade is at least 100 and neither norminette nor forbidden functions failed; `ko` otherwise. It's what the moulinette would say, roughly. `incomplete` when nothing failed but some tests hit a suite problem: everything that could be tested passed, but not everything could be tested.
 
 ### flags
 

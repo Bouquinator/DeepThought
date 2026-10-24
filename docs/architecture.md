@@ -23,7 +23,7 @@ deepthought/
     workspace.py   isolated, incremental copy of the project
     proc.py        subprocesses: timeouts, process-group kill, output caps, cancellation
     dtp.py         DeepThought Test Protocol parsing
-    scoring.py     moulinette-like grade
+    scoring.py     moulinette-like grade (suite errors are left out: verdict "incomplete")
     history.py     run history, regressions/fixes vs the previous run
     watch.py       file watcher (polling, debounced)
     selfupdate.py  git fetch / pull --ff-only of the tester itself
@@ -84,7 +84,7 @@ Concurrency is bounded by a semaphore (`jobs`, default = CPU count) around every
 
 ## Isolation of a single test
 
-C and Python harnesses fork **one process per test**, with a timer (`setitimer` → `SIGALRM` = timeout). The parent reads the child's exit status: a signal means `crash`, `SIGALRM` means `timeout`, and exit codes mean pass/fail/skip/leak. Test stdout/stderr go to a temp file that is attached to the result. The engine adds a global time budget per process group as a safety net.
+C and Python harnesses fork **one process per test**, with a timer (`setitimer` → `SIGALRM` = timeout). The parent reads the child's exit status: a signal means `crash`, `SIGALRM` means `timeout`, and exit codes mean pass/fail/skip/leak. A test that stops itself with `dt_error` reports its own `end` (status `suite_error`, with its reason) and exits with code 5, so the parent adds nothing. Test stdout/stderr go to a temp file that is attached to the result. The engine adds a global time budget per process group as a safety net. With `DT_NO_FORK=1` the tests run in-process, and a stopped test (`DT_ASSERT`, `dt_skip`, `dt_error`) jumps back to the runner with `longjmp`.
 
 **Leak detection and malloc-failure injection** without valgrind: `dt_alloc.c` defines `malloc`/`calloc`/`realloc`/`free` in the test binary.
 - On macOS (two-level namespaces) only code linked into the binary reaches them, and they forward to libc through `dlsym(RTLD_NEXT)`.
@@ -150,4 +150,4 @@ A background check runs at most once a day (`check_updates` setting), and the re
 python3 -m unittest discover -s tests -t .
 ```
 
-This covers manifest validation, workspace sync, scoring, the registry (folder/zip/git, zip-slip), self-update against a local upstream, the HTTP API and its security checks, and end-to-end runs. The end-to-end runs check that every planted bug in `tests/fixtures/libft_broken` gets exactly the expected status (using `tests/fixtures/engine-suite`, a test-only libft subset), that the reference get_next_line passes 100%, that custom project types and linked suites resolve correctly, and that the Sstyle suites give the expected verdicts on the reference libft and ft_printf.
+This covers manifest validation, workspace sync, scoring, the registry (folder/zip/git, zip-slip), self-update against a local upstream, the HTTP API and its security checks, and end-to-end runs. The end-to-end runs check that every planted bug in `tests/fixtures/libft_broken` gets exactly the expected status (using `tests/fixtures/engine-suite`, a test-only libft subset), that the reference get_next_line passes 100%, that custom project types and linked suites resolve correctly, that the Sstyle suites give the expected verdicts on the reference libft and ft_printf, and that suite problems (`dt_error`, `error()`, a missing `stdin_file`, a group without tests, a missing gnl fixture) are reported apart and never graded, with or without fork.

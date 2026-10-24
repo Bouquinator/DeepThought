@@ -26,7 +26,8 @@ from deepthought.checks import make as make_check
 from deepthought.core import history, paths, proc
 from deepthought.core.events import EventBus
 from deepthought.core.models import (BUILD_ERROR, DONE_STATUSES, ERROR, FAILED_STATUSES, LEAK, PASS,
-                                     PENDING, RUNNING, SKIP, GroupState, RunState, StageState, TestState)
+                                     PENDING, RUNNING, SKIP, SUITE_ERROR, GroupState, RunState, StageState,
+                                     TestState)
 from deepthought.core.project import ProjectStore, detect
 from deepthought.core.template import as_argv, expand
 from deepthought.core.workspace import Workspace, fingerprint
@@ -284,8 +285,11 @@ class RunManager:
         if tids:
             only = set(tids)
         elif failed_only:
-            only = {t["tid"] for g in base["groups"] for t in g["tests"] if t["status"] in FAILED_STATUSES}
-            only |= {g["gid"] + "::*" for g in base["groups"] if g["status"] in (BUILD_ERROR, ERROR) and not g["tests"]}
+            # suite problems too: re-running them is how a suite author checks a fix
+            retry = FAILED_STATUSES | {SUITE_ERROR}
+            only = {t["tid"] for g in base["groups"] for t in g["tests"] if t["status"] in retry}
+            only |= {g["gid"] + "::*" for g in base["groups"]
+                     if g["status"] in (BUILD_ERROR, ERROR, SUITE_ERROR) and not g["tests"]}
             if not only:
                 only = None
         return self.start(base["project"]["path"], base["options"].get("suites"), opts, only=only,
@@ -531,7 +535,7 @@ class RunManager:
         if ctx.tracker.cancelled:
             return
         if suite.uid in getattr(ctx, "fetch_failed", set()):
-            gs.status, gs.message = BUILD_ERROR, "the suite's test sources could not be downloaded"
+            gs.status, gs.message = SUITE_ERROR, "problem in the test suite: its test sources could not be downloaded"
             return
         if suite.uid in failed_suites:
             gs.status, gs.message = BUILD_ERROR, "the project failed to build"
@@ -557,6 +561,9 @@ class RunManager:
         ok = runner.prepare()
         gs.build_cmd = runner.build_cmd
         gs.build_log = "\n".join(logs + [runner.build_log]).strip()
+        if not ok and runner.suite_problem:
+            gs.status, gs.message = SUITE_ERROR, f"problem in the test suite: {runner.suite_problem}"
+            return
         if not ok:
             gs.status, gs.message = BUILD_ERROR, "the tests did not compile against your code"
             return

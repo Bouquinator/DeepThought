@@ -21,14 +21,6 @@ typedef struct s_dt_slot
 	size_t	size;
 }	t_dt_slot;
 
-static t_dt_slot	g_table[DT_TABLE_SIZE];
-static int			g_tracking = 0;
-static int			g_overflow = 0;
-static int			g_ignore_leaks = 0;
-static int			g_calls = 0;
-static int			g_fail_at = 0;
-static int			g_fail_all = 0;
-
 #ifdef DT_NO_ALLOC_HOOK
 
 void	*dt_raw_malloc(size_t size) { return (malloc(size)); }
@@ -46,6 +38,14 @@ size_t	dt_alloc_size(const void *p) { (void)p; return (0); }
 size_t	dt_alloc_live(void) { return (0); }
 
 #else
+
+static t_dt_slot	g_table[DT_TABLE_SIZE];
+static int			g_tracking = 0;
+static int			g_overflow = 0;
+static int			g_ignore_leaks = 0;
+static int			g_calls = 0;
+static int			g_fail_at = 0;
+static int			g_fail_all = 0;
 
 # include <dlfcn.h>
 

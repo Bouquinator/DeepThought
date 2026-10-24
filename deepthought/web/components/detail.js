@@ -177,12 +177,13 @@ function FailureCard({ a, test, index }) {
 // A failure without a failed check: crash, timeout, leak, build error.
 function ProblemCard({ test }) {
   const label = { crash: test.signal ? `Crashed (${test.signal})` : 'Crashed', timeout: 'Did not finish (timeout)',
-    leak: 'Memory leak', build_error: 'Did not compile', error: 'Could not run' }[test.status] || 'Failed';
+    leak: 'Memory leak', build_error: 'Did not compile', error: 'Could not run',
+    suite_error: 'Problem in the test suite, not in your code' }[test.status] || 'Failed';
   return html`<div class=${'fcard fcard-' + test.status}>
-    <div class="fcard-head"><span class="fnum">!</span><strong>${label}</strong></div>
+    <div class="fcard-head"><span class="fnum">${test.status === 'suite_error' ? '⚠' : '!'}</span><strong>${label}</strong></div>
     <div class="fgrid">
       ${test.input && html`<span class="flabel">While testing</span><code class="fv">${test.input}</code>`}
-      ${test.reason && html`<span class="flabel">Why</span><span class="fv pre">${test.reason.split('\n')[0]}</span>`}
+      ${test.reason && html`<span class="flabel">${test.status === 'suite_error' ? 'Problem' : 'Why'}</span><span class="fv pre">${test.reason.split('\n')[0]}</span>`}
       ${test.leaks && html`<span class="flabel">Leaked</span><span class="fv"><strong>${test.leaks.bytes}</strong> byte(s) in <strong>${test.leaks.count}</strong> allocation(s) still allocated at the end of the test</span>`}
     </div>
     ${EXPLAIN[test.status] && html`<div class="hint">💡 ${EXPLAIN[test.status]}</div>`}
@@ -194,7 +195,8 @@ function Fold({ title, open, children }) {
 }
 
 export function TestDetail({ run, group, test }) {
-  const failed = FAILED.has(test.status);
+  const suiteError = test.status === 'suite_error';
+  const failed = FAILED.has(test.status) || suiteError;  // both need explaining
   const rerunOne = async () => {
     try {
       await api('POST', `/api/runs/${run.id}/rerun`, { tids: [test.tid] });
@@ -204,7 +206,7 @@ export function TestDetail({ run, group, test }) {
   const [showAll, setShowAll] = useState(false);
   const assertLines = test.asserts.filter((a) => a.file === test.file).map((a) => a.line);
   const shown = showAll ? test.asserts : test.asserts.slice(0, 5);
-  const problemOnly = failed && (!test.asserts.length || ['crash', 'timeout', 'leak'].includes(test.status));
+  const problemOnly = failed && (!test.asserts.length || ['crash', 'timeout', 'leak', 'suite_error'].includes(test.status));
   return html`<div class="detail">
     <div class="detail-head">
       <${StatusPill} status=${test.status}>${test.status === 'crash' && test.signal ? test.signal : null}<//>
@@ -247,6 +249,7 @@ const EXPLAIN = {
   leak: 'Memory allocated during the test was never freed. Check every return path, especially error paths after a failed malloc.',
   build_error: 'The tests could not be compiled against your code: a missing function, a wrong prototype, or a header that does not compile.',
   error: 'The harness could not run this test properly. See the output below.',
+  suite_error: 'The test suite itself has a problem here (a missing fixture, a broken environment…), so this test could not check your code. It is left out of the grade. Tell the suite’s author; “Retest failed” runs it again once it is fixed.',
 };
 
 export function GroupDetail({ run, group }) {
@@ -313,6 +316,11 @@ export function Summary({ run, onSelect }) {
   const info = [];
   for (const g of run.groups) for (const t of g.tests) if (FAILED.has(t.status)) (g.category === 'extra' ? info : failing).push([g, t]);
   const builds = run.groups.filter((g) => g.status === 'build_error' && !g.tests.length);
+  const suiteProblems = [];  // [group, test or null]
+  for (const g of run.groups) {
+    if (g.status === 'suite_error' && !g.tests.length) suiteProblems.push([g, null]);
+    for (const t of g.tests) if (t.status === 'suite_error') suiteProblems.push([g, t]);
+  }
   const FLAGS = {
     norminette: 'Norminette errors: the moulinette gives 0 for norm errors.',
     forbidden: 'A forbidden function is used: this is a 0 at evaluation.',
@@ -340,11 +348,19 @@ export function Summary({ run, onSelect }) {
       <div class="fail-row" onClick=${() => onSelect({ type: 'group', gid: g.gid })}><span class="st st-build_error">⚒</span> ${g.name} <span class="dim small">${g.message}</span></div>`)}</section>`}
     ${failing.length > 0 && html`<section><h4>Failing tests <span class="count">${failing.length}</span></h4>
       ${failing.map(([g, t]) => html`<${FailRow} g=${g} t=${t} onSelect=${onSelect} />`)}</section>`}
+    ${suiteProblems.length > 0 && html`<section><h4>Problems in the test suite <span class="count">${suiteProblems.length}</span></h4>
+      <div class="reason reason-suite_error">⚠ Not your code: the suite could not run ${suiteProblems.length === 1 ? 'this test' : 'these tests'} properly (missing fixture, broken setup…).${' '}
+        ${suiteProblems.length === 1 ? 'It is' : 'They are'} left out of the grade${score && score.verdict === 'incomplete' ? ', so the result is incomplete' : ''}. Tell the suite's author.</div>
+      ${suiteProblems.map(([g, t]) => html`<div class="fail-row" onClick=${() => onSelect(t ? { type: 'test', gid: g.gid, id: t.id } : { type: 'group', gid: g.gid })}>
+        <span class="st st-suite_error">⚠</span>
+        <div class="fr-main"><div class="row gap"><code>${t ? t.id : g.name}</code>${t && html`<span class="dim small ellipsis">${g.name}</span>`}</div>
+          <div class="fr-sub dim">${(t ? t.reason : g.message) || ''}</div></div>
+      </div>`)}</section>`}
     ${info.length > 0 && html`<section><h4>Informational differences <span class="count">${info.length}</span></h4>
       <p class="small dim">Groups marked “info” are not graded: they show where your project differs from a reference on behaviour the subject does not require.</p>
       ${info.map(([g, t]) => html`<div class="fail-row" onClick=${() => onSelect({ type: 'test', gid: g.gid, id: t.id })}>
         <span class="st st-warn">~</span> <code>${t.id}</code> <span class="dim small ellipsis">${g.name}</span></div>`)}</section>`}
-    ${score && !failing.length && !builds.length && run.status === 'done' && html`<div class="celebrate">
+    ${score && !failing.length && !builds.length && !suiteProblems.length && run.status === 'done' && html`<div class="celebrate">
       <div class="big">🎉</div><div>Every test passed. Don't forget: evaluators may test things no tester thinks of.</div></div>`}
   </div>`;
 }

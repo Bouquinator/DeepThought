@@ -13,9 +13,9 @@ static void	expect(int fd, const char *want)
 
 DT_TEST(bonus, interleaved, "Alternating between three fds keeps each position")
 {
-	int	a = open(dt_fixture("multi.txt"), O_RDONLY);
-	int	b = open(dt_fixture("only_nl.txt"), O_RDONLY);
-	int	c = open(dt_fixture("one_line_nl.txt"), O_RDONLY);
+	int	a = open_fixture("multi.txt");
+	int	b = open_fixture("only_nl.txt");
+	int	c = open_fixture("one_line_nl.txt");
 
 	dt_input("3 fds read in turn: a=multi.txt, b=only_nl.txt, c=one_line_nl.txt");
 	expect(a, "Hello world\n");
@@ -33,8 +33,8 @@ DT_TEST(bonus, interleaved, "Alternating between three fds keeps each position")
 
 DT_TEST(bonus, whole_files, "Each fd read to the end gives the right content, without leaks")
 {
-	int	a = open(dt_fixture("multi.txt"), O_RDONLY);
-	int	b = open(dt_fixture("long_line.txt"), O_RDONLY);
+	int	a = open_fixture("multi.txt");
+	int	b = open_fixture("long_line.txt");
 
 	expect_lines(a, dt_fixture("multi.txt"));
 	expect_lines(b, dt_fixture("long_line.txt"));
@@ -44,7 +44,7 @@ DT_TEST(bonus, whole_files, "Each fd read to the end gives the right content, wi
 
 DT_TEST(bonus, invalid_between, "An invalid fd in between does not disturb the others")
 {
-	int	a = open(dt_fixture("multi.txt"), O_RDONLY);
+	int	a = open_fixture("multi.txt");
 
 	dt_input("multi.txt on fd a, with get_next_line(-1) and get_next_line(4242) in between");
 	expect(a, "Hello world\n");

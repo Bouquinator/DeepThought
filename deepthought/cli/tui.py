@@ -11,12 +11,12 @@ import time
 from pathlib import Path
 
 from deepthought.core.executor import RunError
-from deepthought.core.models import FAILED_STATUSES
+from deepthought.core.models import FAILED_STATUSES, SUITE_ERROR
 
 ICON = {"pass": "✓", "fail": "✗", "crash": "✸", "timeout": "⏱", "leak": "◍", "error": "!",
-        "build_error": "⚒", "skip": "–", "pending": "·", "running": "◌", "warn": "!"}
+        "build_error": "⚒", "skip": "–", "pending": "·", "running": "◌", "warn": "!", "suite_error": "⚠"}
 COLOR = {"pass": 1, "fail": 2, "crash": 2, "error": 2, "build_error": 3, "timeout": 4, "leak": 3,
-         "warn": 3, "skip": 5, "pending": 5, "running": 6}
+         "warn": 3, "skip": 5, "pending": 5, "running": 6, "suite_error": 4}
 
 
 def visible(s):
@@ -65,8 +65,8 @@ class Tui:
     def rows(self, run):
         rows = []
         for g in run["groups"]:
-            tests = [t for t in g["tests"] if not self.failed_only or t["status"] in FAILED_STATUSES]
-            if self.failed_only and not tests and g["status"] != "build_error":
+            tests = [t for t in g["tests"] if not self.failed_only or t["status"] in FAILED_STATUSES | {SUITE_ERROR}]
+            if self.failed_only and not tests and g["status"] not in ("build_error", SUITE_ERROR):
                 continue
             rows.append(("group", g, None))
             if g["gid"] not in self.collapsed:
@@ -107,7 +107,7 @@ class Tui:
         done = sum(1 for g in run["groups"] for t in g["tests"] if t["status"] not in ("pending", "running"))
         failed = sum(1 for g in run["groups"] for t in g["tests"] if t["status"] in FAILED_STATUSES)
         score = run.get("score") or {}
-        grade = f"{score.get('grade')}/100" if score else "…"
+        grade = ("—" if score.get("grade") is None else f"{score['grade']}/100") if score else "…"
         head = f" DeepThought · {run['project']['name']} ({run['project']['kind']}) · {run['status']} · {done}/{total} tests"
         self.put(scr, 0, 0, head.ljust(w), curses.A_REVERSE | curses.A_BOLD)
         self.put(scr, 0, max(0, w - len(grade) - 2), grade, curses.A_REVERSE | curses.A_BOLD)

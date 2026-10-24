@@ -2,7 +2,7 @@
 
 Write tests in plain Python files:
 
-    from dtharness import test, given, expect, expect_eq, expect_raises, capture_stdout
+    from dtharness import test, given, expect, expect_eq, expect_raises, capture_stdout, error
     import my_module                      # imported from the student's project
 
     @test("add() adds two numbers")
@@ -34,6 +34,7 @@ import traceback
 
 PROTOCOL = 1
 EXIT_PASS, EXIT_FAIL, EXIT_SKIP = 0, 1, 2
+EXIT_REPORTED = 5  # the test reported its own end (error())
 
 _tests = []
 _state = {"failed": 0, "id": "", "out": None, "json": False, "input": ""}
@@ -45,6 +46,10 @@ class _Fatal(Exception):
 
 class _Skip(Exception):
     pass
+
+
+class _SuiteError(Exception):
+    """Raised by error(): a problem in the test suite, not in the student's code."""
 
 
 # ------------------------------------------------------------------ public API
@@ -196,6 +201,12 @@ def fail(msg):
     return _check(False, msg, "", "")
 
 
+def error(msg):
+    """A problem in the test suite, not in the student's code (a missing fixture…):
+    stops the test with the status "suite_error", which never counts against the student."""
+    raise _SuiteError(str(msg))
+
+
 # ------------------------------------------------------------------ plumbing
 def _emit(ev, human=None):
     out = _state["out"]
@@ -259,6 +270,17 @@ def _run_one(t, default_timeout):
             code = EXIT_FAIL
         except _Skip:
             code = EXIT_SKIP
+        except _SuiteError as e:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            tmp.seek(0)
+            out = tmp.read(4096).decode("utf-8", "replace")
+            ev = {"t": "end", "id": t["id"], "status": "suite_error", "reason": str(e),
+                  "ms": int((time.monotonic() - start) * 1000)}
+            if out:
+                ev["output"] = out
+            _emit(ev, human=f"  SUITE ERROR {t['id']}  {e}\n" + (f"    output:\n{out}\n" if out else ""))
+            code = EXIT_REPORTED
         except SystemExit as e:
             _check(False, "the code called exit()", "no exit", f"exit({e.code})")
             code = EXIT_FAIL
@@ -277,6 +299,9 @@ def _run_one(t, default_timeout):
             os._exit(code)
     _, status = os.waitpid(pid, 0)
     ms = int((time.monotonic() - start) * 1000)
+    if os.WIFEXITED(status) and os.WEXITSTATUS(status) == EXIT_REPORTED:
+        tmp.close()
+        return
     tmp.seek(0)
     output = tmp.read(4096).decode("utf-8", "replace")
     tmp.close()

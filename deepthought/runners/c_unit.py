@@ -85,6 +85,8 @@ class CUnitRunner(DTPProcessRunner):
 
     def _plan_units(self):
         sources = self.globs(self.group.get("sources"))
+        if not sources:
+            return []
         if not self.group.split:
             return [Unit("", sources, self.binary)]
         suite_root = str(Path(self.suite.path).resolve())
@@ -157,6 +159,7 @@ class CUnitRunner(DTPProcessRunner):
         self.units = self._plan_units()
         if not self.units:
             self.build_log = "no test sources matched: " + ", ".join(self.group.sources)
+            self.suite_problem = "no test file matches its `sources`"
             return False
         if self.group.split:
             harness = self._harness_objects(cflags, includes)

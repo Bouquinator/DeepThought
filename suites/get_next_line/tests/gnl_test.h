@@ -2,6 +2,7 @@
 #ifndef GNL_TEST_H
 # define GNL_TEST_H
 # include "dt.h"
+# include <errno.h>
 # include <fcntl.h>
 # include <stdio.h>
 # include <string.h>
@@ -20,6 +21,16 @@ typedef struct s_lines
 	char	**line;
 }	t_lines;
 
+/* A fixture of this suite: if it can't be opened, that's the suite's problem, not the student's. */
+static inline int	open_fixture(const char *name)
+{
+	int	fd = open(dt_fixture(name), O_RDONLY);
+
+	if (fd < 0)
+		dt_error("fixture %s cannot be opened: %s", name, strerror(errno));
+	return (fd);
+}
+
 static inline t_lines	read_lines(const char *path)
 {
 	t_lines	l = {0};
@@ -29,7 +40,7 @@ static inline t_lines	read_lines(const char *path)
 	size_t	start;
 
 	if (!f)
-		return (l);
+		dt_error("fixture %s cannot be read: %s", path, strerror(errno));
 	fseek(f, 0, SEEK_END);
 	size = ftell(f);
 	fseek(f, 0, SEEK_SET);
@@ -91,15 +102,9 @@ static inline void	expect_lines(int fd, const char *path)
 
 static inline void	expect_file(const char *name)
 {
-	int	fd = open(dt_fixture(name), O_RDONLY);
+	int	fd = open_fixture(name);
 
 	dt_input("reading the file fixtures/%s with BUFFER_SIZE=%ld", name, (long)BUFFER_SIZE);
-
-	if (fd < 0)
-	{
-		DT_FAIL("fixture missing");
-		return ;
-	}
 	expect_lines(fd, dt_fixture(name));
 	close(fd);
 }

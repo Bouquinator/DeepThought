@@ -52,7 +52,7 @@ DT_TEST(files, no_leak_after_eof, "Reading to EOF frees everything (no leak)")
 
 DT_TEST(files, after_eof_again, "Calling again after EOF keeps returning NULL")
 {
-	int		fd = open(dt_fixture("one_line_nl.txt"), O_RDONLY);
+	int		fd = open_fixture("one_line_nl.txt");
 	char	*l;
 
 	dt_input("fixtures/one_line_nl.txt read to the end, then get_next_line called twice more");

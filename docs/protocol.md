@@ -262,10 +262,13 @@ Optional. The process ran everything it was asked to. The engine doesn't need it
 | `timeout` | exceeded the per-test timeout | failed |
 | `leak` | all checks passed, but memory was still allocated at the end | failed (passed when the user turned leak checks off) |
 | `skip` | not run on purpose (`dt_skip`, missing prerequisite) | not counted |
+| `suite_error` | a problem in the **test suite**, not in the student's code: a fixture that can't be opened, a reference that's missing (`dt_error`, `error()`) | not counted; the verdict becomes `incomplete` |
 | `error` | the producer itself failed (internal problem, unknown status) | failed |
 | `build_error` | the test could not be compiled or loaded against the student's code | failed |
 
-Precedence, when several things go wrong in one test: `crash` / `timeout` > `fail` > `leak` > `pass`.
+Precedence, when several things go wrong in one test: `crash` / `timeout` > `fail` > `leak` > `pass`. A `suite_error` stops the test where it happens, so its earlier failed asserts are still shown but the status is `suite_error`: the test couldn't do its job.
+
+**Use `suite_error` only for the suite's own problems.** It tells the student "this is not about your code" and keeps the test out of the grade, so a producer that sends it for a student's mistake hides that mistake. Engines older than this status read it as `error`.
 
 ## 8. Strings, bytes and encoding
 
@@ -291,6 +294,7 @@ This is how the reference engine interprets the stream, so you can predict what 
    - `timeout` with no `reason` gets "did not finish within Ns (infinite loop? blocking read?)";
    - `leak` becomes `pass` (with a note) when leak checks are off, for the run or for the group (`leaks = false`);
    - `fail` without any assert gets a reason: the unusual exit code (exit() called?), or "failed without an assertion message".
+   - `suite_error` is kept apart: listed under *Problems in the test suite*, left out of the grade and of regressions, and re-run by *Retest failed*.
 7. **The process exits.** Every test of the chunk that is still *pending* or *running* is resolved:
    - *running* (started, never ended) → `crash`, "the test process died unexpectedly", with the end of its stderr;
    - *pending* (never started) → `error`;
@@ -302,7 +306,7 @@ This is how the reference engine interprets the stream, so you can predict what 
 
 There are two levels of protection, and a good producer uses both.
 
-- **Per test** (the producer's job). Each test must stop after `DT_TIMEOUT` seconds and be reported as `timeout`. The C and Python harnesses fork one child per test, arm a timer (`setitimer`) in the child, and report `timeout` when it is killed by `SIGALRM`. A crash of the child (segfault, abort) becomes `crash` with the signal name, and the parent carries on with the next test.
+- **Per test** (the producer's job). Each test must stop after `DT_TIMEOUT` seconds and be reported as `timeout`. The C and Python harnesses fork one child per test, arm a timer (`setitimer`) in the child, and report `timeout` when it is killed by `SIGALRM`. A crash of the child (segfault, abort) becomes `crash` with the signal name, and the parent carries on with the next test. The `end` of a test may be written by the parent or by the child itself: the C harness lets the child report a `suite_error` with its reason (`dt_error`), then exit with a code (5) that tells the parent not to send another `end`. The engine doesn't care which process writes an event.
 - **Per process** (the engine's job). A `--run` process gets a budget of `DT_TIMEOUT × number of tests + 10` seconds. Past that, its whole process group is killed, and its unfinished tests become `timeout`. This catches producers that don't fork.
 
 A producer that doesn't fork (a simple shell script) still works: a crash kills the process, the engine sees a started test that never ended and reports it as `crash`. The remaining tests of that chunk become `error`, so forking per test is strongly recommended for anything that runs student code.
@@ -321,7 +325,7 @@ When `DT_REPORT_FD` is unset, a person launched the producer by hand, usually by
   FAIL    ft_substr/basic (0 ms)
 ```
 
-`--list` and `--run` must work the same way in both modes. The C harness also supports `DT_NO_FORK=1` (run tests in-process, for `lldb`/`gdb`).
+`--list` and `--run` must work the same way in both modes. The C harness also supports `DT_NO_FORK=1` (run tests in-process, for `lldb`/`gdb`); a failed `DT_ASSERT`, `dt_skip` or `dt_error` still stops only the current test.
 
 ## 12. Reference implementations
 
@@ -432,6 +436,7 @@ command = "run.py"         # relative to the suite folder, must be executable
 - [ ] Nothing but DTP on `DT_REPORT_FD`; the program under test keeps stdout/stderr.
 - [ ] Each test enforces `DT_TIMEOUT` itself, and a crash only affects its own test (fork or subprocess).
 - [ ] Failures carry `expected`/`actual` (and `cmp:"text"` for texts), and the input when it isn't obvious.
+- [ ] Problems of the suite itself (missing fixture…) end with `suite_error` and a reason, never with `fail`.
 - [ ] Tests are independent: they can run in any subset, in parallel processes.
 - [ ] Readable output when `DT_REPORT_FD` is unset.
 - [ ] `./dt suite validate path/to/suite --project path/to/a/correct/project` passes.
@@ -443,4 +448,4 @@ command = "run.py"         # relative to the suite folder, must be executable
 - A producer speaking a newer protocol than the engine still runs; the engine logs "harness speaks a newer protocol: update the tester".
 - Suites declare the engine they need with `[suite] engine = ">=0.1"`. An incompatible suite is flagged instead of being run with surprises.
 
-History of additions within version 1: `input` event; `input` and `cmp` on `assert`; `alloc_hooks` and `group` informational fields.
+History of additions within version 1: `input` event; `input` and `cmp` on `assert`; `alloc_hooks` and `group` informational fields; the `suite_error` status.

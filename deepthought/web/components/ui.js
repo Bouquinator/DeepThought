@@ -10,6 +10,7 @@ export const STATUS = {
   leak: { icon: '◍', label: 'Leak' },
   error: { icon: '!', label: 'Error' },
   build_error: { icon: '⚒', label: 'Build error' },
+  suite_error: { icon: '⚠', label: 'Suite problem' },
   skip: { icon: '–', label: 'Skipped' },
   warn: { icon: '!', label: 'Warning' },
   pending: { icon: '·', label: 'Pending' },

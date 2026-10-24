@@ -374,7 +374,8 @@ def cmd_history(args):
     for r in runs[: args.limit]:
         score = r.get("score") or {}
         when = time.strftime("%Y-%m-%d %H:%M", time.localtime(r.get("started") or 0))
-        print(f"  {r['id']}  {when}  {r['status']:<9} grade {score.get('grade', '-'):>3}"
+        grade = score.get("grade")
+        print(f"  {r['id']}  {when}  {r['status']:<9} grade {'—' if grade is None else grade:>3}"
               + (c(f"  {score.get('regressions')} regression(s)", "magenta") if score.get("regressions") else ""))
     if not runs:
         print("no runs yet")

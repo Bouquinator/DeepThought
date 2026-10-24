@@ -7,7 +7,8 @@
 ** Environment:
 **   DT_REPORT_FD   write DTP JSON lines to this fd (else readable text)
 **   DT_TIMEOUT     per-test timeout in seconds (float, default 5)
-**   DT_NO_FORK=1   run tests in-process (for debuggers)
+**   DT_NO_FORK=1   run tests in-process (for debuggers); a failed DT_ASSERT,
+**                  dt_skip or dt_error still stops the test
 **   DT_FIXTURES    directory used by dt_fixture()
 **   DT_OUTPUT_MAX  bytes of test stdout/stderr to keep (default 4096)
 */
@@ -18,6 +19,7 @@
 #include "dt.h"
 #include <errno.h>
 #include <fcntl.h>
+#include <setjmp.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <sys/time.h>
@@ -28,6 +30,7 @@
 #define EXIT_FAIL 1
 #define EXIT_SKIP 2
 #define EXIT_LEAK 3
+#define EXIT_REPORTED 5	/* the test reported its own end (dt_error) */
 
 static t_dt_test	g_tests[DT_MAX_TESTS];
 static int			g_count = 0;
@@ -38,6 +41,8 @@ static int			g_in_child = 0;
 static int			g_nofork = 0;
 static const char	*g_current = "";
 static char			g_input[1024];
+static double		g_start;	/* when the current test started (ms) */
+static jmp_buf		g_nofork_stop;	/* DT_NO_FORK: where a stopped test jumps to */
 
 /* ------------------------------------------------------------ output */
 
@@ -202,7 +207,7 @@ static void	child_end(int code)
 	fflush(stdout);
 	fflush(stderr);
 	if (g_nofork)
-		return ;
+		longjmp(g_nofork_stop, code + 1);
 	_exit(code);
 }
 
@@ -623,11 +628,14 @@ static void	read_output(int fd, char **data, size_t *len)
 	(*data)[*len] = 0;
 }
 
+/* reason: one sentence explaining the status (default: the signal's) */
 static void	report_end(const char *status, double ms, int sig, int code,
-	const char *output, size_t outlen)
+	const char *output, size_t outlen, const char *reason)
 {
 	t_buf	b;
 
+	if (!reason && sig)
+		reason = sigexplain(sig);
 	if (!g_json)
 	{
 		human("  %s %s \x1b[2m(%.0f ms)\x1b[0m%s%s\n",
@@ -636,8 +644,10 @@ static void	report_end(const char *status, double ms, int sig, int code,
 			: !strcmp(status, "leak") ? "\x1b[33mLEAK   \x1b[0m"
 			: !strcmp(status, "timeout") ? "\x1b[35mTIMEOUT\x1b[0m"
 			: !strcmp(status, "crash") ? "\x1b[31mCRASH  \x1b[0m"
+			: !strcmp(status, "suite_error") ? "\x1b[35mSUITE ERROR\x1b[0m"
+			: !strcmp(status, "error") ? "\x1b[31mERROR  \x1b[0m"
 			: "\x1b[31mFAIL   \x1b[0m", g_current, ms,
-			sig ? "  " : "", sig ? sigexplain(sig) : "");
+			reason ? "  " : "", reason ? reason : "");
 		if (outlen)
 			human("    output:\n%.*s\n", (int)outlen, output);
 		return ;
@@ -647,10 +657,9 @@ static void	report_end(const char *status, double ms, int sig, int code,
 	buf_kv(&b, "status", status);
 	buf_kvn(&b, "ms", (long long)ms);
 	if (sig)
-	{
 		buf_kv(&b, "signal", signame(sig));
-		buf_kv(&b, "reason", sigexplain(sig));
-	}
+	if (reason)
+		buf_kv(&b, "reason", reason);
 	if (code >= 0)
 		buf_kvn(&b, "exit", code);
 	if (outlen)
@@ -659,6 +668,47 @@ static void	report_end(const char *status, double ms, int sig, int code,
 		buf_json(&b, output, outlen);
 	}
 	emit(&b);
+}
+
+void	dt_error(const char *fmt, ...)
+{
+	char	msg[1024];
+	char	*output;
+	size_t	outlen;
+	va_list	ap;
+
+	va_start(ap, fmt);
+	vsnprintf(msg, sizeof(msg), fmt, ap);
+	va_end(ap);
+	fflush(stdout);
+	fflush(stderr);
+	if (!g_in_child)
+	{
+		human("dt_error outside a test: %s\n", msg);
+		exit(EXIT_FAILURE);
+	}
+	output = NULL;
+	outlen = 0;
+	if (!g_nofork)
+		read_output(1, &output, &outlen);	/* the test's stdout is a temp file */
+	dt_alloc_stop();
+	report_end("suite_error", now_ms() - g_start, 0, -1, output, outlen, msg);
+	dt_raw_free(output);
+	child_end(EXIT_REPORTED);
+	exit(EXIT_REPORTED);	/* not reached: child_end never returns here */
+}
+
+static const char	*status_of(int code)
+{
+	if (code == EXIT_PASS)
+		return ("pass");
+	if (code == EXIT_FAIL)
+		return ("fail");
+	if (code == EXIT_SKIP)
+		return ("skip");
+	if (code == EXIT_LEAK)
+		return ("leak");
+	return ("error");
 }
 
 static void	run_one(const t_dt_test *t, double timeout)
@@ -673,6 +723,7 @@ static void	run_one(const t_dt_test *t, double timeout)
 	char		*output;
 	size_t		outlen;
 	int			code;
+	int			jumped;
 
 	test_id(t, id, sizeof(id));
 	g_current = id;
@@ -683,11 +734,15 @@ static void	run_one(const t_dt_test *t, double timeout)
 		emit(&b);
 	}
 	start = now_ms();
+	g_start = start;
 	if (g_nofork)
 	{
-		code = child_run(t, -1);
-		report_end(code == EXIT_PASS ? "pass" : code == EXIT_LEAK ? "leak"
-			: "fail", now_ms() - start, 0, -1, NULL, 0);
+		jumped = setjmp(g_nofork_stop);	/* DT_ASSERT, dt_skip, dt_error jump back here */
+		code = jumped ? jumped - 1 : child_run(t, -1);
+		if (jumped)
+			dt_alloc_stop();
+		if (code != EXIT_REPORTED)
+			report_end(status_of(code), now_ms() - start, 0, -1, NULL, 0, NULL);
 		return ;
 	}
 	outfd = mkstemp(tmpl);
@@ -709,17 +764,13 @@ static void	run_one(const t_dt_test *t, double timeout)
 	if (WIFSIGNALED(status) && WTERMSIG(status) == SIGALRM)
 	{
 		g_current = id;
-		report_end("timeout", now_ms() - start, 0, -1, output, outlen);
+		report_end("timeout", now_ms() - start, 0, -1, output, outlen, NULL);
 	}
 	else if (WIFSIGNALED(status))
-		report_end("crash", now_ms() - start, WTERMSIG(status), -1, output, outlen);
-	else
-	{
-		code = WEXITSTATUS(status);
-		report_end(code == EXIT_PASS ? "pass" : code == EXIT_FAIL ? "fail"
-			: code == EXIT_SKIP ? "skip" : code == EXIT_LEAK ? "leak" : "error",
-			now_ms() - start, 0, code, output, outlen);
-	}
+		report_end("crash", now_ms() - start, WTERMSIG(status), -1, output, outlen, NULL);
+	else if (WEXITSTATUS(status) != EXIT_REPORTED)
+		report_end(status_of(WEXITSTATUS(status)), now_ms() - start, 0,
+			WEXITSTATUS(status), output, outlen, NULL);
 	dt_raw_free(output);
 }
 

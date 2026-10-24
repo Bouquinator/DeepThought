@@ -8,7 +8,7 @@
   {"t":"log","id":"grp/name","msg":"..."}
   {"t":"input","id":"grp/name","value":"src=\"abc\", n=2"}     (input under test from now on)
   {"t":"leak","id":"grp/name","bytes":12,"count":1}
-  {"t":"end","id":"grp/name","status":"pass|fail|crash|timeout|leak|skip|error","ms":3,
+  {"t":"end","id":"grp/name","status":"pass|fail|crash|timeout|leak|skip|error|suite_error","ms":3,
    "signal":"SIGSEGV","reason":"...","output":"..."}
   {"t":"done"}
 
@@ -21,7 +21,7 @@ import json
 from deepthought import PROTOCOL
 
 TYPES = {"hello", "discover", "start", "assert", "log", "leak", "end", "done", "input"}
-STATUSES = {"pass", "fail", "crash", "timeout", "leak", "skip", "error", "build_error"}
+STATUSES = {"pass", "fail", "crash", "timeout", "leak", "skip", "error", "build_error", "suite_error"}
 
 
 def parse(line):

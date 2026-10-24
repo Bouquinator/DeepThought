@@ -48,7 +48,7 @@ DT_TEST(errors, read_error, "read() fails (a directory): returns NULL")
 
 DT_TEST(errors, read_error_midway, "A read error discards what was buffered: the next file starts clean")
 {
-	int		fd = open(dt_fixture("multi.txt"), O_RDONLY);
+	int		fd = open_fixture("multi.txt");
 	char	*l;
 	int		guard = 0;
 
@@ -60,14 +60,14 @@ DT_TEST(errors, read_error_midway, "A read error discards what was buffered: the
 		free(l);
 	DT_EXPECT_NULL(l);
 	free(l);
-	fd = open(dt_fixture("one_line_nl.txt"), O_RDONLY);
+	fd = open_fixture("one_line_nl.txt");
 	expect_lines(fd, dt_fixture("one_line_nl.txt"));
 	close(fd);
 }
 
 DT_TEST(errors, malloc_fail, "Every malloc fails: returns NULL without crashing")
 {
-	int		fd = open(dt_fixture("multi.txt"), O_RDONLY);
+	int		fd = open_fixture("multi.txt");
 	char	*l;
 
 	dt_input("fixtures/multi.txt while every malloc fails");

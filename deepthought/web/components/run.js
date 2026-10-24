@@ -9,12 +9,14 @@ const FILTERS = [
   ['failed', 'Failed'],
   ['passed', 'Passed'],
   ['skipped', 'Skipped'],
+  ['suite', 'Suite problems'],  // shown only when there are some
 ];
 
 function matchesFilter(t, filter, q) {
   if (filter === 'failed' && !FAILED.has(t.status)) return false;
   if (filter === 'passed' && t.status !== 'pass') return false;
   if (filter === 'skipped' && t.status !== 'skip') return false;
+  if (filter === 'suite' && t.status !== 'suite_error') return false;
   if (q) {
     const hay = `${t.id} ${t.desc}`.toLowerCase();
     if (!hay.includes(q)) return false;
@@ -26,15 +28,18 @@ function counts(run) {
   let total = 0;
   let done = 0;
   let failed = 0;
+  let suite = 0;  // problems of the test suite itself: not the student's fault
   for (const g of run.groups) {
     for (const t of g.tests) {
       total++;
       if (!['pending', 'running'].includes(t.status)) done++;
       if (FAILED.has(t.status) && g.category !== 'extra') failed++;
+      if (t.status === 'suite_error') suite++;
     }
     if (g.status === 'build_error' && !g.tests.length) { total++; done++; failed++; }
+    if (g.status === 'suite_error' && !g.tests.length) { total++; done++; suite++; }
   }
-  return { total, done, failed };
+  return { total, done, failed, suite };
 }
 
 // ------------------------------------------------------------------ build options
@@ -138,7 +143,7 @@ export function ProjectSuites({ project, onClose, onSaved }) {
 // ------------------------------------------------------------------ header
 function RunHeader({ run, project }) {
   const s = useStore();
-  const { total, done, failed } = counts(run);
+  const { total, done, failed, suite } = counts(run);
   const running = run.status === 'running' || run.status === 'pending';
   const [opts, setOpts] = useState({ sanitize: !!run.options.sanitize, leaks: run.options.leaks !== false });
   const [buildOpen, setBuildOpen] = useState(false);
@@ -170,7 +175,7 @@ function RunHeader({ run, project }) {
     const onKey = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.metaKey || e.ctrlKey) return;
       if (e.key === 'r' && !running) { e.preventDefault(); rerunAll(false); }
-      if (e.key === 'f' && !running && failed) { e.preventDefault(); rerunFailed(); }
+      if (e.key === 'f' && !running && (failed || suite)) { e.preventDefault(); rerunFailed(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -182,7 +187,8 @@ function RunHeader({ run, project }) {
       <div class="row gap wrap">
         <h1>${run.project.name}</h1>
         <span class="pill pill-kind">${run.project.kind}</span>
-        <${StatusPill} status=${run.status === 'done' ? (failed ? 'fail' : 'pass') : run.status}>${run.status === 'done' ? (failed ? `${failed} failing` : 'all green') : null}<//>
+        <${StatusPill} status=${run.status === 'done' ? (failed ? 'fail' : suite ? 'suite_error' : 'pass') : run.status}>${run.status === 'done' ? (failed ? `${failed} failing` : suite ? 'incomplete' : 'all green') : null}<//>
+        ${suite > 0 && html`<span class="pill pill-suite_error" title="Problems in the test suite itself, not in your code. Not graded.">⚠ ${suite} suite problem${suite > 1 ? 's' : ''}</span>`}
         ${proj.watching && html`<span class="pill pill-watch">👀 watching</span>`}
       </div>
       <div class="dim small mono ellipsis" title=${run.project.path}>${run.project.path}</div>
@@ -201,7 +207,7 @@ function RunHeader({ run, project }) {
       ${running
         ? html`<button class="btn btn-danger" onClick=${cancel}>■ Stop</button>`
         : html`<button class="btn btn-primary" onClick=${() => rerunAll(false)} title="Sync, rebuild what changed and run everything (r)">↻ Retest all</button>
-            <button class="btn" disabled=${!failed} onClick=${rerunFailed} title="Re-run only failing tests (f)">↻ Retest failed</button>`}
+            <button class="btn" disabled=${!failed && !suite} onClick=${rerunFailed} title="Re-run only failing tests and suite problems (f)">↻ Retest failed</button>`}
       <div class="row gap">
         <button class=${'btn btn-sm' + (proj.watching ? ' btn-on' : '')} onClick=${toggleWatch} title="Re-run automatically when you save a file">👀 Watch</button>
         <button class="btn btn-sm" disabled=${running} onClick=${() => rerunAll(true)} title="make fclean, then rebuild from scratch">Clean build</button>
@@ -237,9 +243,10 @@ function Tree({ run, sel, onSelect, filter, q }) {
     ${s.groups.map((g) => {
       const tests = g.tests.filter((t) => matchesFilter(t, filter, q));
       const nPass = g.tests.filter((t) => t.status === 'pass').length;
-      const nRun = g.tests.filter((t) => t.status !== 'skip').length;
+      const nRun = g.tests.filter((t) => t.status !== 'skip' && t.status !== 'suite_error').length;  // graded tests
       const open = collapsed[g.gid] === undefined ? true : !collapsed[g.gid];
-      if (!tests.length && filter !== 'all' && g.status !== 'build_error') return null;
+      const emptyShown = g.status === 'build_error' || (g.status === 'suite_error' && ['all', 'suite'].includes(filter));
+      if (!tests.length && filter !== 'all' && !emptyShown) return null;
       return html`<div class="tree-group">
         <div class=${'tree-row group-row' + (sel && sel.type === 'group' && sel.gid === g.gid ? ' selected' : '')}
           onClick=${() => onSelect({ type: 'group', gid: g.gid })}>
@@ -314,6 +321,7 @@ export function RunView({ run }) {
   if (!detail) detail = html`<${Summary} run=${run} onSelect=${setSel} />`;
 
   const nFailed = run.groups.reduce((n, g) => n + (g.category === 'extra' ? 0 : g.tests.filter((t) => FAILED.has(t.status)).length), 0);
+  const nSuite = counts(run).suite;
   return html`<div class="run">
     <${RunHeader} run=${run} />
     <${Stages} run=${run} sel=${sel} onSelect=${setSel} />
@@ -321,9 +329,9 @@ export function RunView({ run }) {
       <aside class="side">
         <div class="side-tools">
           <input ref=${searchRef} class="input search" placeholder="Search tests  ( / )" value=${q} onInput=${(e) => setQ(e.target.value)} />
-          <div class="chips">${FILTERS.map(([k, label]) => html`
-            <button class=${'chip' + (filter === k ? ' on' : '')} onClick=${() => setFilter(k)}>
-              ${label}${k === 'failed' && nFailed ? html` <span class="count">${nFailed}</span>` : ''}</button>`)}
+          <div class="chips">${FILTERS.filter(([k]) => k !== 'suite' || nSuite || filter === 'suite').map(([k, label]) => html`
+            <button class=${'chip' + (filter === k ? ' on' : '') + (k === 'suite' ? ' chip-suite' : '')} onClick=${() => setFilter(k)}>
+              ${label}${k === 'failed' && nFailed ? html` <span class="count">${nFailed}</span>` : ''}${k === 'suite' && nSuite ? html` <span class="count">${nSuite}</span>` : ''}</button>`)}
             <button class=${'chip' + (!sel ? ' on' : '')} onClick=${() => setSel(null)} title="Summary">Σ</button>
           </div>
         </div>

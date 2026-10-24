@@ -2,7 +2,7 @@
 
 static void	from_stdin(const char *name)
 {
-	int	fd = open(dt_fixture(name), O_RDONLY);
+	int	fd = open_fixture(name);
 
 	dt_input("reading stdin (fd 0) filled with fixtures/%s, BUFFER_SIZE=%ld", name, (long)BUFFER_SIZE);
 	dup2(fd, 0);

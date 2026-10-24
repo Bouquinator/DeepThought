@@ -76,6 +76,13 @@ void	dt_note(const char *fmt, ...);
 /* describe the input being tested: shown with every failure (and crash) that follows */
 void	dt_input(const char *fmt, ...);
 void	dt_skip(const char *reason);
+/*
+** A problem in the test suite, not in the student's code (a fixture that
+** cannot be opened, a broken environment): stops the test with the status
+** "suite_error", which is reported to the suite's author and never counted
+** against the student. printf-like.
+*/
+void	dt_error(const char *fmt, ...) __attribute__((noreturn));
 void	dt_fail(const char *msg, const char *file, int line);
 
 # define DT__CHK(f, ...) f(__VA_ARGS__, __FILE__, __LINE__)

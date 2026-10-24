@@ -14,7 +14,8 @@ from deepthought.core.template import expand, quote_cmd
 class Runner:
     """One instance per (group, matrix variant) per run.
 
-    prepare()  -> bool        compile / set up; False = build error (set self.build_log)
+    prepare()  -> bool        compile / set up; False = build error (set self.build_log),
+                              or a problem of the suite itself when self.suite_problem is set
     discover() -> [dict]      DTP 'discover' events (id, name, desc, file, line)
     run(ids, on_event)        run tests, report DTP events through on_event
     repro(test_id) -> str     shell command reproducing one test
@@ -28,6 +29,7 @@ class Runner:
         self.outdir = Path(outdir)
         self.build_log = ""
         self.build_cmd = ""
+        self.suite_problem = ""  # why prepare() failed, when it's the suite's fault (not the student's)
         self.vars = ctx.template_vars(suite, group, variant, outdir)
 
     # helpers

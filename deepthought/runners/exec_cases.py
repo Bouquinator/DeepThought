@@ -56,6 +56,7 @@ class ExecRunner(Runner):
             self._loaded, self._path = self._cases()
         except (OSError, toml.TOMLDecodeError) as e:
             self.build_log = f"cannot read cases file: {e}"
+            self.suite_problem = f"its cases file cannot be read ({e})"
             return False
         self.build_cmd = f"(cases from {self._path})"
         return True
@@ -89,7 +90,12 @@ class ExecRunner(Runner):
         timeout = float(c.get("timeout", self.timeout))
         shell = bool(c.get("shell", False))
         argv, use_shell = self._argv(c["cmd"], shell)
-        stdin = self._stdin(c)
+        try:
+            stdin = self._stdin(c)
+        except OSError as e:
+            on_event({"t": "end", "id": cid, "status": "suite_error", "ms": 0,
+                      "reason": f"stdin_file {c.get('stdin_file')!r} cannot be read ({e.strerror or e})"})
+            return
         shown = (argv[0] if use_shell else quote_cmd(argv)).replace(str(self.ctx.ws.src), "<project>")
         if stdin:
             preview = stdin[:200].decode("utf-8", "replace")

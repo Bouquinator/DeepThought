@@ -24,5 +24,10 @@ class ScriptRunner(DTPProcessRunner):
         exe = Path(argv[0])
         if exe.is_absolute() and exe.exists() and not os.access(exe, os.X_OK):
             self.build_log = f"{exe} is not executable (chmod +x it)"
+            self.suite_problem = f"its command {exe.name} is not executable (chmod +x it)"
+            return False
+        if exe.is_absolute() and not exe.exists():
+            self.build_log = f"{exe} does not exist"
+            self.suite_problem = f"its command {exe} does not exist"
             return False
         return True
