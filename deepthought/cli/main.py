@@ -497,11 +497,44 @@ def main(argv=None):
         return 0
     if args.command in ("suite",) and args.action not in ("list",) and not args.target:
         parser.error(f"suite {args.action} needs a target")
-    if args.command != "ui":
-        import signal
+    import signal
 
+    if args.command != "ui":
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # `dt run | head` exits quietly
+    # a closed terminal (SIGHUP) or `kill` (SIGTERM) exits like Ctrl-C: through the cleanup below
+    previous = {s: signal.signal(s, _exit_on_signal) for s in (signal.SIGTERM, signal.SIGHUP)
+                if signal.getsignal(s) == signal.SIG_DFL}
+    code = 1
     try:
-        return args.func(args) or 0
+        code = args.func(args) or 0
     except KeyboardInterrupt:
-        return 130
+        code = 130
+    except SystemExit as e:
+        code = e.code if isinstance(e.code, int) else 1
+        raise
+    finally:
+        _shutdown(code)
+        for s, h in previous.items():
+            signal.signal(s, h)
+    return code
+
+
+def _exit_on_signal(signum, frame):
+    raise SystemExit(128 + signum)
+
+
+def _shutdown(code, grace=3.0):
+    """Kill the test processes still running and make sure Python really exits:
+    leftover worker threads get `grace` seconds, then the process ends anyway."""
+    import threading
+
+    from deepthought.core import proc
+
+    proc.shutdown()
+    if any(t is not threading.current_thread() and not t.daemon for t in threading.enumerate()):
+        def force_exit():
+            time.sleep(grace)
+            sys.stdout.flush()
+            os._exit(code)
+
+        threading.Thread(target=force_exit, daemon=True, name="exit-deadline").start()

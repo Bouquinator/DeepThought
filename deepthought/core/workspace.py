@@ -7,6 +7,7 @@ incremental between runs and watch mode is fast.
 import fnmatch
 import hashlib
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -21,41 +22,69 @@ def project_key(path):
     return hashlib.sha1(path.encode()).hexdigest()[:12]
 
 
+_IGNORED = re.compile("|".join(fnmatch.translate(pat) for pat in IGNORE_FILES))
+_binary_cache = {}  # path -> (mtime_ns, size, is a compiled executable): watch mode asks every second
+
+
 def _ignored_file(name):
-    return any(fnmatch.fnmatch(name, pat) for pat in IGNORE_FILES)
+    return _IGNORED.match(name) is not None
 
 
-def _is_binary_exe(path):
-    try:
-        if not os.access(path, os.X_OK):
-            return False
-        with open(path, "rb") as f:
-            return f.read(4) in BINARY_MAGIC
-    except OSError:
+def _is_binary_exe(path, st):
+    if not st.st_mode & 0o111:
         return False
+    key = (st.st_mtime_ns, st.st_size)
+    cached = _binary_cache.get(path)
+    if cached and cached[:2] == key:
+        return cached[2]
+    try:
+        with open(path, "rb") as f:
+            binary = f.read(4) in BINARY_MAGIC
+    except OSError:
+        binary = False
+    if len(_binary_cache) > 10000:
+        _binary_cache.clear()
+    _binary_cache[path] = (*key, binary)
+    return binary
+
+
+def _scan(root, rel=""):
+    """Yield (relpath, abspath, stat) of the project files we care about, in a
+    stable order, with a single stat per file. Unreadable entries are skipped."""
+    try:
+        with os.scandir(os.path.join(root, rel)) as it:
+            entries = sorted(it, key=lambda e: e.name)
+    except OSError:
+        return
+    subdirs = []
+    for e in entries:
+        try:
+            if e.is_dir(follow_symlinks=False):
+                if e.name not in IGNORE_DIRS and not e.name.startswith(".dt"):
+                    subdirs.append(e.name)
+                continue
+            if _ignored_file(e.name) or not e.is_file(follow_symlinks=False):
+                continue  # symlinks, sockets, fifos...
+            st = e.stat(follow_symlinks=False)
+        except OSError:  # vanished while we looked
+            continue
+        if st.st_size > MAX_FILE or _is_binary_exe(e.path, st):
+            continue
+        yield rel + e.name, e.path, st
+    for d in subdirs:
+        yield from _scan(root, f"{rel}{d}/")
 
 
 def iter_source_files(root):
     """Yield (relpath, abspath) of the project files we care about."""
-    root = Path(root)
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(d for d in dirnames if d not in IGNORE_DIRS and not d.startswith(".dt"))
-        for name in sorted(filenames):
-            if _ignored_file(name):
-                continue
-            full = Path(dirpath) / name
-            if full.is_symlink() or not full.is_file():
-                continue
-            if full.stat().st_size > MAX_FILE or _is_binary_exe(full):
-                continue
-            yield str(full.relative_to(root)), full
+    for rel, full, _ in _scan(str(root)):
+        yield rel, Path(full)
 
 
 def fingerprint(root):
     """Cheap change detector for watch mode: (relpath, mtime_ns, size) set."""
     h = hashlib.sha1()
-    for rel, full in iter_source_files(root):
-        st = full.stat()
+    for rel, _, st in _scan(str(root)):
         h.update(f"{rel}\0{st.st_mtime_ns}\0{st.st_size}\n".encode())
     return h.hexdigest()
 
@@ -76,10 +105,9 @@ def sync(src, dst, manifest=None):
         previous = set()
     wanted = set()
     changes = 0
-    for rel, full in iter_source_files(src):
+    for rel, full, st in _scan(str(src)):
         wanted.add(rel)
         target = dst / rel
-        st = full.stat()
         try:
             tst = target.stat()
             if tst.st_size == st.st_size and tst.st_mtime_ns == st.st_mtime_ns:

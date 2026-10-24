@@ -260,6 +260,7 @@ class Tui:
         scr.timeout(120)
         self.start()
         dirty = True
+        instant = 0  # getch() returning "no key" at once, again and again: the terminal is gone
         while True:
             try:
                 while True:
@@ -272,9 +273,14 @@ class Tui:
             if dirty:
                 self.draw(scr)
                 dirty = False
+            asked = time.monotonic()
             key = scr.getch()
             if key == -1:
+                instant = instant + 1 if time.monotonic() - asked < 0.01 else 0
+                if instant >= 50:
+                    break
                 continue
+            instant = 0
             if key == curses.KEY_RESIZE:
                 dirty = True
                 continue

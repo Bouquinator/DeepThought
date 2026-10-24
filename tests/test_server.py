@@ -25,6 +25,7 @@ class ServerTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.server.shutdown()
+        cls.server.server_close()
 
     def req(self, path, method="GET", body=None, token="secret-token", host=None):
         r = urllib.request.Request(self.base + path, method=method,
@@ -37,7 +38,8 @@ class ServerTests(unittest.TestCase):
             with urllib.request.urlopen(r, timeout=30) as resp:
                 return resp.status, json.loads(resp.read() or b"{}")
         except urllib.error.HTTPError as e:
-            return e.code, json.loads(e.read() or b"{}")
+            with e:
+                return e.code, json.loads(e.read() or b"{}")
 
     def test_token_required(self):
         self.assertEqual(self.req("/api/state", token=None)[0], 401)
@@ -102,8 +104,9 @@ class ServerTests(unittest.TestCase):
     def test_static_and_traversal(self):
         with urllib.request.urlopen(self.base + "/app.js") as r:
             self.assertIn("text/javascript", r.headers["Content-Type"])
-        with self.assertRaises(urllib.error.HTTPError):
+        with self.assertRaises(urllib.error.HTTPError) as cm:
             urllib.request.urlopen(self.base + "/../../etc/passwd")
+        cm.exception.close()
 
 
 if __name__ == "__main__":
